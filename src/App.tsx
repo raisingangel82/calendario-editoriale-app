@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendario } from './components/Calendario.tsx';
 import { ThemeSwitcher } from './components/ThemeSwitcher.tsx';
 import { Auth } from './components/Auth.tsx';
 import { auth } from './firebase.ts';
-import { User, onAuthStateChanged, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
+import type { User } from 'firebase/auth'; // Corretto
 import { LogOut } from 'lucide-react';
-import { AccountIcon } from './components/AccountIcon.tsx'; // Importa la nuova icona
+import { AccountIcon } from './components/AccountIcon.tsx';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
       setUser(user);
       setLoading(false);
     });
@@ -32,15 +33,8 @@ function App() {
       {user ? (
         <>
           <header className="py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8">
-            {/* LATO SINISTRO: Icona Account */}
             <AccountIcon user={user} />
-
-            {/* CENTRO: Titolo */}
-            <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">
-              Calendario Editoriale
-            </h1>
-
-            {/* LATO DESTRO: Selettore Tema e Logout */}
+            <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">Calendario Editoriale</h1>
             <div className="flex items-center gap-2">
               <ThemeSwitcher />
               <button onClick={handleLogout} className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Logout">
@@ -60,5 +54,4 @@ function App() {
     </div>
   );
 }
-
 export default App;

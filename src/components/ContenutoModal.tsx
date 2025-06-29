@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
 import { X, Trash2, ExternalLink, Copy } from 'lucide-react';
-
-interface Progetto { id: string; nome: string; }
-interface Post { id: string; data?: { toDate: () => Date }; [key: string]: any; }
+import type { Post, Progetto } from '../types';
 
 interface ContenutoModalProps {
   post?: Post;
@@ -32,38 +30,53 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     setIsProdotto(checked);
     if (!checked) setIsPubblicato(false);
   };
+
   const handlePubblicatoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setIsPubblicato(checked);
     if (checked) setIsProdotto(true);
   };
+
   const handleSaveChanges = () => {
-    if (!data) { alert("Per favore, inserisci una data per il post."); return; }
+    if (!data) {
+      alert("Per favore, inserisci una data per il post.");
+      return;
+    }
     const dataToSave: any = {
       libro, piattaforma, tipoContenuto, descrizione, urlMedia,
       data: new Date(data), statoProdotto: isProdotto, statoPubblicato: isPubblicato,
     };
     onSave(dataToSave);
   };
+
   const handleDelete = () => {
     if (isEditMode && post) { if (window.confirm(`Sei sicuro di voler eliminare il post per "${post.libro}"?`)) onDelete(post.id); }
   };
+
   const handleDuplicate = () => {
-    if (isEditMode && post) onDuplicate(post);
+    if (isEditMode && post) {
+      if (userPlan !== 'pro') {
+        alert("La duplicazione dei post è una funzionalità Pro.");
+        return;
+      }
+      onDuplicate(post);
+    }
   };
+  
   const handlePublishRedirect = () => {
     const urls: { [key: string]: string } = { 'Instagram': 'https://www.instagram.com/', 'X': 'https://x.com/compose/post', 'YouTube': 'https://studio.youtube.com/', 'TikTok': 'https://www.tiktok.com/upload', 'Threads': 'https://www.threads.net/' };
     const url = urls[piattaforma] || 'https://google.com';
     window.open(url, '_blank', 'noopener,noreferrer');
   };
+
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
-  const inputStyle = "w-full bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-600 focus:ring-0 focus:border-red-600 dark:focus:border-red-500 transition-colors py-2 text-gray-800 dark:text-gray-200";
-  const selectStyle = `${inputStyle} dark:bg-gray-800`;
+  const inputBaseStyle = "w-full bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-600 focus:ring-0 focus:border-red-600 dark:focus:border-red-500 transition-colors py-2 text-gray-800 dark:text-gray-200";
+  const selectStyle = `${inputBaseStyle} dark:bg-gray-800`;
   const labelStyle = "block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider";
 
   return (
@@ -73,6 +86,7 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
           <h2 className="text-xl font-light tracking-widest text-gray-600 dark:text-gray-300 uppercase">{isEditMode ? 'Dettagli Post' : 'Nuovo Post'}</h2>
           <button onClick={onClose} className="p-2 rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"><X size={20} /></button>
         </div>
+        
         <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -88,7 +102,7 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
               </select>
             </div>
           </div>
-          <div><label htmlFor="data" className={labelStyle}>Data Pubblicazione</label><input id="data" type="datetime-local" value={data} onChange={e => setData(e.target.value)} className={inputStyle} /></div>
+          <div><label htmlFor="data" className={labelStyle}>Data Pubblicazione</label><input id="data" type="datetime-local" value={data} onChange={e => setData(e.target.value)} className={inputBaseStyle} /></div>
           <div>
             <label htmlFor="tipoContenuto" className={labelStyle}>Tipo Contenuto</label>
             <select id="tipoContenuto" value={tipoContenuto} onChange={e => setTipoContenuto(e.target.value)} className={selectStyle}>
@@ -98,11 +112,11 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
                 <optgroup label="Video"><option value="Reel">Reel</option><option value="Booktrailer">Booktrailer</option><option value="Podcast">Podcast</option><option value="Vlog">Vlog</option></optgroup>
             </select>
           </div>
-          <div><label htmlFor="descrizione" className={labelStyle}>Descrizione / Testo</label><textarea id="descrizione" value={descrizione} onChange={e => setDescrizione(e.target.value)} rows={3} className={`${inputStyle} resize-none`}/></div>
+          <div><label htmlFor="descrizione" className={labelStyle}>Descrizione / Testo</label><textarea id="descrizione" value={descrizione} onChange={e => setDescrizione(e.target.value)} rows={3} className={`${inputBaseStyle} resize-none`}/></div>
           <div>
             <label htmlFor="urlMedia" className={labelStyle}>URL Media</label>
             <div className="flex items-center gap-2">
-              <input id="urlMedia" type="text" value={urlMedia} onChange={e => setUrlMedia(e.target.value)} className={inputStyle} placeholder="https://..."/>
+              <input id="urlMedia" type="text" value={urlMedia} onChange={e => setUrlMedia(e.target.value)} className={inputBaseStyle} placeholder="https://..."/>
               <a href={urlMedia && !urlMedia.startsWith('http') ? `https://${urlMedia}` : urlMedia} target="_blank" rel="noopener noreferrer" className={`p-2 rounded-md ${!urlMedia ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                 <ExternalLink size={18} className="text-gray-600 dark:text-gray-300" />
               </a>
