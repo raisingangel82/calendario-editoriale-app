@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import type { User } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, writeBatch, getDocs } from 'firebase/firestore';
@@ -246,7 +246,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
                 </div>
             </div>
             
-            <DndContext onDragEnd={handleDragEnd} disabled={!isDesktop}>
+           <DndContext onDragEnd={handleDragEnd}>
                 {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView /> ) : ( <FilteredListView posts={postsDaCreareFiltrati} filterCategory={filterCategory!} onBack={handleShowCalendar} onPostClick={handleCardClick} /> )}
             </DndContext>
 
