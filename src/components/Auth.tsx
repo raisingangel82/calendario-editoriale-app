@@ -20,8 +20,9 @@ export const Auth: React.FC = () => {
     e.preventDefault();
     setError(null);
     try {
-      if (isLogin) { await signInWithEmailAndPassword(auth, email, password); } 
-      else {
+      if (isLogin) {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
         const currentUser = auth.currentUser;
         if (currentUser && currentUser.isAnonymous) {
           const credential = EmailAuthProvider.credential(email, password);

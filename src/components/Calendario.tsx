@@ -250,7 +250,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
                 {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView /> ) : ( <FilteredListView posts={postsDaCreareFiltrati} filterCategory={filterCategory!} onBack={handleShowCalendar} onPostClick={handleCardClick} /> )}
             </DndContext>
 
-            {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (
+            {viewMode === 'calendar' && PERPETUAL_SCROLL_ENABLED && visibleWeeksCount < allWeeks.length && (
                 <div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400">
                     <p>Caricamento...</p>
                 </div>
