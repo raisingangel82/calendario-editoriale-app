@@ -1,3 +1,4 @@
+import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { format } from 'date-fns';
@@ -11,6 +12,7 @@ interface ContenutoCardProps {
 }
 
 export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, onCardClick, isDraggable }) => {
+  // Usiamo la nuova prop 'isDraggable' per disabilitare il hook
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: post.id,
     data: { postObject: post },
@@ -26,6 +28,7 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, onCardClick,
   return (
     <div ref={setNodeRef} style={style} className="h-full">
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex items-stretch shadow-sm h-full">
+        {/* La maniglia per il drag-and-drop ora viene mostrata solo se isDraggable è true */}
         {isDraggable && (
           <div {...listeners} {...attributes} className="p-1 cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-600 self-stretch flex items-center bg-gray-50 dark:bg-gray-800/80 rounded-l-lg border-r border-gray-200 dark:border-gray-700">
             <GripVertical size={18} />

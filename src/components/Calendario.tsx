@@ -20,11 +20,7 @@ interface CalendarioProps {
     user: User;
 }
 
-const fasceOrarie = [
-  { label: '08-12', startHour: 8, endHour: 12 },
-  { label: '12-16', startHour: 12, endHour: 16 },
-  { label: '16-20', startHour: 16, endHour: 20 },
-];
+const fasceOrarie = [ { label: '08-12', startHour: 8, endHour: 12 }, { label: '12-16', startHour: 12, endHour: 16 }, { label: '16-20', startHour: 16, endHour: 20 }];
     
 const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, children }) => {
     const { setNodeRef, isOver } = useDroppable({ id });
@@ -42,6 +38,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [progetti, setProgetti] = useState<Progetto[]>([]);
     const [userPlan, setUserPlan] = useState<'free' | 'pro'>('free');
+    const [allWeeks, setAllWeeks] = useState<Date[][]>([]);
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -55,34 +52,31 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     const PERPETUAL_SCROLL_ENABLED = userPlan === 'pro';
     const totalWeeksToShow = PERPETUAL_SCROLL_ENABLED ? 100 : 8;
 
-    const allWeeks = useMemo(() => {
-        const weeks: Date[][] = [];
+    useEffect(() => {
+        const weekArray: Date[][] = [];
         for (let i = 0; i < totalWeeksToShow; i++) {
             const settimanaInizio = addWeeks(startOfWeek(dataInizio, { weekStartsOn: 1 }), i);
             const giorniDellaSettimana: Date[] = [];
             for (let j = 0; j < 5; j++) { giorniDellaSettimana.push(addDays(settimanaInizio, j)); }
-            weeks.push(giorniDellaSettimana);
+            weekArray.push(giorniDellaSettimana);
         }
-        return weeks;
-    }, [totalWeeksToShow]);
+        setAllWeeks(weekArray);
+    }, [PERPETUAL_SCROLL_ENABLED, totalWeeksToShow]);
 
     useEffect(() => {
         const userDocRef = doc(db, "users", user.uid);
         const unsubUser = onSnapshot(userDocRef, (doc) => { setUserPlan(doc.data()?.plan || 'free'); });
-
         const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
         const unsubPosts = onSnapshot(qPosts, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[]); });
-
         const qProgetti = query(collection(db, "progetti"), where("userId", "==", user.uid));
         const unsubProgetti = onSnapshot(qProgetti, (snapshot) => { setProgetti(snapshot.docs.map(doc => ({ id: doc.id, nome: doc.data().nome })) as Progetto[]); });
-        
         return () => { unsubUser(); unsubPosts(); unsubProgetti(); };
     }, [user.uid]);
     
     useEffect(() => {
         if (viewMode !== 'calendar' || !PERPETUAL_SCROLL_ENABLED || visibleWeeksCount >= allWeeks.length) return;
         const observer = new IntersectionObserver(
-          (entries) => { if (entries[0].isIntersecting) { setVisibleWeeksCount(prevCount => prevCount + 4); } },
+          (entries) => { if (entries[0].isIntersecting) { setVisibleWeeksCount(prevCount => Math.min(prevCount + 4, allWeeks.length)); } },
           { rootMargin: "500px", threshold: 0.1 }
         );
         const currentRef = loadMoreRef.current;
@@ -164,14 +158,16 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
                 await deleteBatch.commit();
             }
             const importBatch = writeBatch(db);
+            let importedCount = 0;
             importedPosts.forEach(post => {
                 if (post.libro && post.piattaforma && post.data && post.tipoContenuto && post.descrizione) {
                     const newPostRef = doc(collection(db, "contenuti"));
                     importBatch.set(newPostRef, { ...post, userId: user.uid, data: Timestamp.fromDate(new Date(post.data)), statoProdotto: post.statoProdotto || false, statoPubblicato: post.statoPubblicato || false, urlMedia: post.urlMedia || '' });
+                    importedCount++;
                 }
             });
             await importBatch.commit();
-            alert(`${importedPosts.length} post importati con successo!`);
+            alert(`${importedCount} post importati con successo!`);
             setIsImportModalOpen(false);
         } catch (error) {
             console.error("Errore importazione:", error);
@@ -216,7 +212,6 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
             ))}
         </div>
     );
-
     const MobileView = () => (
         <div className="space-y-6">
             {weeksToDisplay.map((settimana, index) => (
