@@ -4,7 +4,7 @@ import { ThemeSwitcher } from './components/ThemeSwitcher.tsx';
 import { Auth } from './components/Auth.tsx';
 import { auth } from './firebase.ts';
 import { signOut } from 'firebase/auth';
-import type { User } from 'firebase/auth'; // Corretto
+import type { User } from 'firebase/auth';
 import { LogOut } from 'lucide-react';
 import { AccountIcon } from './components/AccountIcon.tsx';
 

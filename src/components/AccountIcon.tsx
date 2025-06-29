@@ -1,4 +1,4 @@
-import type { User } from 'firebase/auth'; // Corretto
+import type { User } from 'firebase/auth';
 
 interface AccountIconProps {
     user: User;

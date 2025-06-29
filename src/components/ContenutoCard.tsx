@@ -2,7 +2,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { format } from 'date-fns';
 import { CheckCircle2, Circle, GripVertical, Clock } from 'lucide-react';
-import type { Post } from '../types'; // Corretto
+import type { Post } from '../types';
 
 interface ContenutoCardProps {
   post: Post;
@@ -14,7 +14,7 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, onCardClick,
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: post.id,
     data: { postObject: post },
-    disabled: !isDraggable, // Correzione del bug
+    disabled: !isDraggable,
   });
 
   const style = {

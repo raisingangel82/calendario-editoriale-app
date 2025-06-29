@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { auth, db } from '../firebase';
-import { User } from 'firebase/auth';
+import { db } from '../firebase';
+import type { User } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, writeBatch, getDocs } from 'firebase/firestore';
 import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, getHours, setHours } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { DndContext, DragEndEvent, useDroppable } from '@dnd-kit/core';
+import { DndContext, useDroppable } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 
 import { ContenutoCard } from './ContenutoCard.tsx';
 import { ContenutoModal } from './ContenutoModal.tsx';
@@ -27,10 +28,9 @@ const fasceOrarie = [
     
 const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, children }) => {
     const { setNodeRef, isOver } = useDroppable({ id });
-    const bgColor = isOver ? 'bg-red-50 dark:bg-red-900/40' : 'bg-transparent';
+    const bgColor = isOver ? 'bg-red-50 dark:bg-red-900/40' : '';
     return (<div ref={setNodeRef} className={`p-2 h-full w-full transition-colors rounded-lg ${bgColor}`}><div className="space-y-2">{children}</div></div>);
 }
-
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipoLower = tipoContenuto.toLowerCase();
     if (['reel', 'video', 'booktrailer', 'vlog', 'montaggio', 'documentario'].some(term => tipoLower.includes(term))) return 'Video';
@@ -42,7 +42,6 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [progetti, setProgetti] = useState<Progetto[]>([]);
     const [userPlan, setUserPlan] = useState<'free' | 'pro'>('free');
-    const [allWeeks, setAllWeeks] = useState<Date[][]>([]);
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -52,20 +51,20 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     const loadMoreRef = useRef<HTMLDivElement>(null);
     const isDesktop = useBreakpoint();
     const dataInizio = new Date('2025-06-30');
-
+    
     const PERPETUAL_SCROLL_ENABLED = userPlan === 'pro';
     const totalWeeksToShow = PERPETUAL_SCROLL_ENABLED ? 100 : 8;
 
-    useEffect(() => {
-        const weekArray: Date[][] = [];
+    const allWeeks = useMemo(() => {
+        const weeks: Date[][] = [];
         for (let i = 0; i < totalWeeksToShow; i++) {
             const settimanaInizio = addWeeks(startOfWeek(dataInizio, { weekStartsOn: 1 }), i);
             const giorniDellaSettimana: Date[] = [];
             for (let j = 0; j < 5; j++) { giorniDellaSettimana.push(addDays(settimanaInizio, j)); }
-            weekArray.push(giorniDellaSettimana);
+            weeks.push(giorniDellaSettimana);
         }
-        setAllWeeks(weekArray);
-    }, [PERPETUAL_SCROLL_ENABLED, totalWeeksToShow]);
+        return weeks;
+    }, [totalWeeksToShow]);
 
     useEffect(() => {
         const userDocRef = doc(db, "users", user.uid);
@@ -82,12 +81,10 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     
     useEffect(() => {
         if (viewMode !== 'calendar' || !PERPETUAL_SCROLL_ENABLED || visibleWeeksCount >= allWeeks.length) return;
-
         const observer = new IntersectionObserver(
           (entries) => { if (entries[0].isIntersecting) { setVisibleWeeksCount(prevCount => prevCount + 4); } },
           { rootMargin: "500px", threshold: 0.1 }
         );
-
         const currentRef = loadMoreRef.current;
         if (currentRef) { observer.observe(currentRef); }
         return () => { if (currentRef) { observer.unobserve(currentRef); } };
@@ -100,7 +97,6 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         await updateDoc(docRef, dataToUpdate);
         setSelectedPost(null);
     };
-
     const handleAddPost = async (dataToSave: Omit<Post, 'id' | 'userId'>) => {
         if (userPlan === 'free' && progetti.length >= 1) {
             const isNewProject = !progetti.some(p => p.nome === dataToSave.libro);
@@ -114,16 +110,13 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         await addDoc(collection(db, 'contenuti'), docData);
         setIsAddModalOpen(false);
     };
-
     const handleDeletePost = async (postId: string) => {
         const docRef = doc(db, 'contenuti', postId);
         await deleteDoc(docRef);
         setSelectedPost(null);
     };
-
     const handleCardClick = (post: Post) => { setSelectedPost(post); };
     const handleCloseModal = () => { setSelectedPost(null); setIsAddModalOpen(false); setIsImportModalOpen(false); };
-
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over) return;
@@ -137,10 +130,8 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         const docRef = doc(db, 'contenuti', postId);
         await updateDoc(docRef, { data: Timestamp.fromDate(nuovaData) });
     };
-
     const handleFilterClick = (categoria: Categoria) => { setFilterCategory(categoria); setViewMode('list'); };
     const handleShowCalendar = () => { setViewMode('calendar'); setFilterCategory(null); };
-
     const handleExport = () => {
         if (userPlan !== 'pro') { alert("L'esportazione è una funzionalità Pro."); return; }
         const dataToExport = posts.map(({ id, userId, ...rest }) => ({...rest, data: rest.data ? rest.data.toDate().toISOString() : null }));
@@ -152,7 +143,6 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         linkElement.setAttribute('download', exportFileDefaultName);
         linkElement.click();
     };
-
     const handleDuplicatePost = async (postToDuplicate: Post) => {
         if (userPlan !== 'pro') { alert("La duplicazione è una funzionalità Pro."); return; }
         if (!user) return;
@@ -161,10 +151,10 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         await addDoc(collection(db, 'contenuti'), docData);
         handleCloseModal();
     };
-
     const handleImport = async (importedPosts: any[], mode: 'add' | 'overwrite') => {
         if (userPlan !== 'pro') { alert("L'importazione di file è una funzionalità Pro."); return; }
         if (!window.confirm(`Stai per ${mode === 'overwrite' ? 'SOVRASCRIVERE TUTTI I POST ESISTENTI' : 'importare ' + importedPosts.length + ' nuovi post'}. Sei assolutamente sicuro?`)) return;
+        
         try {
             if (mode === 'overwrite') {
                 const deleteBatch = writeBatch(db);
@@ -214,7 +204,9 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
                                     {fasceOrarie.map(fascia => {
                                         const contenutiDellaFascia = posts.filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno)) && getHours(p.data.toDate()) >= fascia.startHour && getHours(p.data.toDate()) < fascia.endHour);
                                         const dropZoneId = `${giorno.toISOString()}|${fascia.label}`;
-                                        return ( <div key={fascia.label} className="min-h-[6rem] w-full"><DropZone id={dropZoneId}>{contenutiDellaFascia.map(post => (<ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} isDraggable={true} />))}</DropZone></div> );
+                                        return (
+                                            <div key={fascia.label} className="min-h-[6rem] w-full"><DropZone id={dropZoneId}>{contenutiDellaFascia.map(post => (<ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} isDraggable={true} />))}</DropZone></div>
+                                        );
                                     })}
                                 </div>
                             </div>
@@ -224,6 +216,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
             ))}
         </div>
     );
+
     const MobileView = () => (
         <div className="space-y-6">
             {weeksToDisplay.map((settimana, index) => (
@@ -234,9 +227,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
                             const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a,b) => a.data!.toDate().getTime() - b.data!.toDate().getTime());
                             return (
                                 <div key={giorno.toISOString()} className="border border-gray-200 dark:border-gray-700 rounded-lg">
-                                    <h4 className="font-bold text-sm bg-gray-50 dark:bg-gray-800 p-3 rounded-t-lg border-b border-gray-200 dark:border-gray-700 capitalize">
-                                        {format(giorno, 'eeee dd MMMM', { locale: it })}
-                                    </h4>
+                                    <h4 className="font-bold text-sm bg-gray-50 dark:bg-gray-800 p-3 rounded-t-lg border-b border-gray-200 dark:border-gray-700 capitalize">{format(giorno, 'eeee dd MMMM', { locale: it })}</h4>
                                     <div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">
                                         {contenutiDelGiorno.length > 0 ? contenutiDelGiorno.map(post => (<ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} isDraggable={false} />)) : <div className="h-10"></div>}
                                     </div>
@@ -264,7 +255,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
                 {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView /> ) : ( <FilteredListView posts={postsDaCreareFiltrati} filterCategory={filterCategory!} onBack={handleShowCalendar} onPostClick={handleCardClick} /> )}
             </DndContext>
 
-            {viewMode === 'calendar' && PERPETUAL_SCROLL_ENABLED && visibleWeeksCount < allWeeks.length && (
+            {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (
                 <div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400">
                     <p>Caricamento...</p>
                 </div>

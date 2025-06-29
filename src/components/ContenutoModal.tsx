@@ -38,8 +38,8 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   };
 
   const handleSaveChanges = () => {
-    if (!data) {
-      alert("Per favore, inserisci una data per il post.");
+    if (!data && !isEditMode) {
+      alert("Per favore, inserisci una data per il nuovo post.");
       return;
     }
     const dataToSave: any = {

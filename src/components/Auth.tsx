@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { auth, db } from '../firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, EmailAuthProvider, linkWithCredential } from 'firebase/auth';
-import type { UserCredential } from 'firebase/auth'; // Corretto
+import type { UserCredential } from 'firebase/auth';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 
 export const Auth: React.FC = () => {
-  // ... (tutta la logica interna rimane invariata, la incollo per completezza)
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,20 +13,15 @@ export const Auth: React.FC = () => {
   const createUserProfileDocument = async (userCredential: UserCredential) => {
     const user = userCredential.user;
     const userRef = doc(db, "users", user.uid);
-    await setDoc(userRef, {
-      email: user.email,
-      plan: 'free',
-      createdAt: Timestamp.now()
-    });
+    await setDoc(userRef, { email: user.email, plan: 'free', createdAt: Timestamp.now() });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     try {
-      if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
+      if (isLogin) { await signInWithEmailAndPassword(auth, email, password); } 
+      else {
         const currentUser = auth.currentUser;
         if (currentUser && currentUser.isAnonymous) {
           const credential = EmailAuthProvider.credential(email, password);
@@ -42,7 +36,6 @@ export const Auth: React.FC = () => {
       if (err.code === 'auth/email-already-in-use') { setError('Questo indirizzo email è già stato registrato.'); } 
       else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') { setError('Email o password non corretta.'); } 
       else { setError('Si è verificato un errore. Riprova.'); }
-      console.error("Errore di autenticazione:", err);
     }
   };
 
