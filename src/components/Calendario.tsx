@@ -1,36 +1,45 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../firebase';
-import type { User } from 'firebase/auth';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { db, auth } from '../firebase';
+import { User, onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, writeBatch, getDocs } from 'firebase/firestore';
 import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, getHours, setHours } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { DndContext, useDroppable } from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, useDroppable } from '@dnd-kit/core';
 
 import { ContenutoCard } from './ContenutoCard.tsx';
 import { ContenutoModal } from './ContenutoModal.tsx';
-import { Plus, Download, Upload } from 'lucide-react';
+import { Plus, Download, Upload, Settings } from 'lucide-react';
 import { Stats } from './Stats.tsx';
 import { useBreakpoint } from '../hooks/useBreakpoint.ts';
 import { FilteredListView } from './FilteredListView.tsx';
 import { ImportModal } from './ImportModal.tsx';
+import { ProjectManagerModal } from './ProjectManagerModal.tsx';
 import type { Post, Progetto, Categoria } from '../types';
 
 interface CalendarioProps {
     user: User;
 }
 
-const fasceOrarie = [ { label: '08-12', startHour: 8, endHour: 12 }, { label: '12-16', startHour: 12, endHour: 16 }, { label: '16-20', startHour: 16, endHour: 20 }];
+const fasceOrarie = [
+  { label: '08-12', startHour: 8, endHour: 12 },
+  { label: '12-16', startHour: 12, endHour: 16 },
+  { label: '16-20', startHour: 16, endHour: 20 },
+];
     
 const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, children }) => {
     const { setNodeRef, isOver } = useDroppable({ id });
     const bgColor = isOver ? 'bg-red-50 dark:bg-red-900/40' : '';
     return (<div ref={setNodeRef} className={`p-2 h-full w-full transition-colors rounded-lg ${bgColor}`}><div className="space-y-2">{children}</div></div>);
 }
+
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
-    const tipoLower = tipoContenuto.toLowerCase();
-    if (['reel', 'video', 'booktrailer', 'vlog', 'montaggio', 'documentario'].some(term => tipoLower.includes(term))) return 'Video';
-    if (['immagine', 'post statico', 'carousel'].some(term => tipoLower.includes(term))) return 'Immagine';
+    const tipoLower = tipoContenuto?.toLowerCase() || '';
+    if (['reel', 'video', 'booktrailer', 'vlog', 'montaggio', 'documentario', 'podcast'].some(term => tipoLower.includes(term))) {
+        return 'Video';
+    }
+    if (['immagine', 'post statico', 'carousel', 'immagine/carosello'].some(term => tipoLower.includes(term))) {
+        return 'Immagine';
+    }
     return 'Testo';
 };
 
@@ -42,6 +51,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
     const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
     const [filterCategory, setFilterCategory] = useState<Categoria | null>(null);
     const [visibleWeeksCount, setVisibleWeeksCount] = useState(4);
@@ -66,10 +76,13 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     useEffect(() => {
         const userDocRef = doc(db, "users", user.uid);
         const unsubUser = onSnapshot(userDocRef, (doc) => { setUserPlan(doc.data()?.plan || 'free'); });
+
         const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
         const unsubPosts = onSnapshot(qPosts, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[]); });
+
         const qProgetti = query(collection(db, "progetti"), where("userId", "==", user.uid));
         const unsubProgetti = onSnapshot(qProgetti, (snapshot) => { setProgetti(snapshot.docs.map(doc => ({ id: doc.id, nome: doc.data().nome })) as Progetto[]); });
+        
         return () => { unsubUser(); unsubPosts(); unsubProgetti(); };
     }, [user.uid]);
     
@@ -91,6 +104,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         await updateDoc(docRef, dataToUpdate);
         setSelectedPost(null);
     };
+
     const handleAddPost = async (dataToSave: Omit<Post, 'id' | 'userId'>) => {
         if (userPlan === 'free' && progetti.length >= 1) {
             const isNewProject = !progetti.some(p => p.nome === dataToSave.libro);
@@ -104,13 +118,16 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         await addDoc(collection(db, 'contenuti'), docData);
         setIsAddModalOpen(false);
     };
+
     const handleDeletePost = async (postId: string) => {
         const docRef = doc(db, 'contenuti', postId);
         await deleteDoc(docRef);
         setSelectedPost(null);
     };
+
     const handleCardClick = (post: Post) => { setSelectedPost(post); };
-    const handleCloseModal = () => { setSelectedPost(null); setIsAddModalOpen(false); setIsImportModalOpen(false); };
+    const handleCloseModal = () => { setSelectedPost(null); setIsAddModalOpen(false); setIsImportModalOpen(false); setIsProjectModalOpen(false); };
+
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over) return;
@@ -124,8 +141,10 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         const docRef = doc(db, 'contenuti', postId);
         await updateDoc(docRef, { data: Timestamp.fromDate(nuovaData) });
     };
+
     const handleFilterClick = (categoria: Categoria) => { setFilterCategory(categoria); setViewMode('list'); };
     const handleShowCalendar = () => { setViewMode('calendar'); setFilterCategory(null); };
+
     const handleExport = () => {
         if (userPlan !== 'pro') { alert("L'esportazione è una funzionalità Pro."); return; }
         const dataToExport = posts.map(({ id, userId, ...rest }) => ({...rest, data: rest.data ? rest.data.toDate().toISOString() : null }));
@@ -137,6 +156,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         linkElement.setAttribute('download', exportFileDefaultName);
         linkElement.click();
     };
+
     const handleDuplicatePost = async (postToDuplicate: Post) => {
         if (userPlan !== 'pro') { alert("La duplicazione è una funzionalità Pro."); return; }
         if (!user) return;
@@ -145,6 +165,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         await addDoc(collection(db, 'contenuti'), docData);
         handleCloseModal();
     };
+
     const handleImport = async (importedPosts: any[], mode: 'add' | 'overwrite') => {
         if (userPlan !== 'pro') { alert("L'importazione di file è una funzionalità Pro."); return; }
         if (!window.confirm(`Stai per ${mode === 'overwrite' ? 'SOVRASCRIVERE TUTTI I POST ESISTENTI' : 'importare ' + importedPosts.length + ' nuovi post'}. Sei assolutamente sicuro?`)) return;
@@ -175,6 +196,21 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         }
     };
 
+    const handleAddProject = async (newProjectData: { nome: string; sintesi: string; immagineUrl: string }) => {
+        if (userPlan === 'free' && progetti.length >= 1) {
+            alert("Il piano gratuito consente di gestire un solo progetto. Passa a Pro per aggiungerne altri.");
+            return;
+        }
+        await addDoc(collection(db, 'progetti'), {
+            ...newProjectData,
+            userId: user.uid,
+        });
+    };
+
+    const handleDeleteProject = async (projectId: string) => {
+        await deleteDoc(doc(db, 'progetti', projectId));
+    };
+
     const postsDaCreareFiltrati = posts
         .filter(p => !p.statoProdotto && filterCategory && getCategoriaGenerica(p.tipoContenuto) === filterCategory)
         .sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0));
@@ -184,53 +220,14 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     const DesktopView = () => (
         <div className="space-y-8">
             {weeksToDisplay.map((settimana, index) => (
-                <div key={index}>
-                    <h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">
-                        Settimana {index + 1}
-                        <span className="text-sm font-light text-gray-400 dark:text-gray-500 ml-3">({format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[4], 'dd MMM', { locale: it })})</span>
-                    </h3>
-                    <div className="grid grid-cols-5 gap-4">
-                        {settimana.map(giorno => (
-                            <div key={giorno.toISOString()} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 flex flex-col">
-                                <div className="p-3 text-center border-b border-gray-200 dark:border-gray-700">
-                                    <h4 className="font-semibold text-gray-500 dark:text-gray-400 uppercase text-xs tracking-wider">{format(giorno, 'eeee')}</h4>
-                                    <p className="text-gray-400 dark:text-gray-500 text-2xl font-light">{format(giorno, 'dd')}</p>
-                                </div>
-                                <div className="flex flex-col flex-grow p-2 space-y-2">
-                                    {fasceOrarie.map(fascia => {
-                                        const contenutiDellaFascia = posts.filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno)) && getHours(p.data.toDate()) >= fascia.startHour && getHours(p.data.toDate()) < fascia.endHour);
-                                        const dropZoneId = `${giorno.toISOString()}|${fascia.label}`;
-                                        return (
-                                            <div key={fascia.label} className="min-h-[6rem] w-full"><DropZone id={dropZoneId}>{contenutiDellaFascia.map(post => (<ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} isDraggable={true} />))}</DropZone></div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                <div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}<span className="text-sm font-light text-gray-400 dark:text-gray-500 ml-3">({format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[4], 'dd MMM', { locale: it })})</span></h3><div className="grid grid-cols-5 gap-4">{settimana.map(giorno => (<div key={giorno.toISOString()} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 flex flex-col"><div className="p-3 text-center border-b border-gray-200 dark:border-gray-700"><h4 className="font-semibold text-gray-500 dark:text-gray-400 uppercase text-xs tracking-wider">{format(giorno, 'eeee')}</h4><p className="text-gray-400 dark:text-gray-500 text-2xl font-light">{format(giorno, 'dd')}</p></div><div className="flex flex-col flex-grow p-2 space-y-2">{fasceOrarie.map(fascia => { const contenutiDellaFascia = posts.filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno)) && getHours(p.data.toDate()) >= fascia.startHour && getHours(p.data.toDate()) < fascia.endHour); const dropZoneId = `${giorno.toISOString()}|${fascia.label}`; return ( <div key={fascia.label} className="min-h-[6rem] w-full"><DropZone id={dropZoneId}>{contenutiDellaFascia.map(post => (<ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} isDraggable={true} />))}</DropZone></div> );})}</div></div>))}</div></div>
             ))}
         </div>
     );
     const MobileView = () => (
         <div className="space-y-6">
             {weeksToDisplay.map((settimana, index) => (
-                <div key={index}>
-                     <h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}</h3>
-                     <div className="space-y-4">
-                        {settimana.map(giorno => {
-                            const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a,b) => a.data!.toDate().getTime() - b.data!.toDate().getTime());
-                            return (
-                                <div key={giorno.toISOString()} className="border border-gray-200 dark:border-gray-700 rounded-lg">
-                                    <h4 className="font-bold text-sm bg-gray-50 dark:bg-gray-800 p-3 rounded-t-lg border-b border-gray-200 dark:border-gray-700 capitalize">{format(giorno, 'eeee dd MMMM', { locale: it })}</h4>
-                                    <div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">
-                                        {contenutiDelGiorno.length > 0 ? contenutiDelGiorno.map(post => (<ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} isDraggable={false} />)) : <div className="h-10"></div>}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                     </div>
-                </div>
+                <div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}</h3><div className="space-y-4">{settimana.map(giorno => { const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a,b) => a.data!.toDate().getTime() - b.data!.toDate().getTime()); return (<div key={giorno.toISOString()} className="border border-gray-200 dark:border-gray-700 rounded-lg"><h4 className="font-bold text-sm bg-gray-50 dark:bg-gray-800 p-3 rounded-t-lg border-b border-gray-200 dark:border-gray-700 capitalize">{format(giorno, 'eeee dd MMMM', { locale: it })}</h4><div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">{contenutiDelGiorno.length > 0 ? contenutiDelGiorno.map(post => (<ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} isDraggable={false} />)) : <div className="h-10"></div>}</div></div>);})}</div></div>
             ))}
         </div>
     );
@@ -240,17 +237,18 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
             <div className="flex flex-col md:flex-row justify-between md:items-stretch gap-6 mb-10">
                 <div className="w-full md:w-3/4"><Stats posts={posts} progetti={progetti} onFilterClick={handleFilterClick} /></div>
                 <div className="w-full md:w-1/4 flex flex-col sm:flex-row md:flex-col gap-2">
+                    <button onClick={() => setIsProjectModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Settings size={18} /> Gestisci Progetti</button>
                     <button onClick={handleExport} disabled={userPlan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={userPlan!=='pro'?'Funzionalità Pro':'Esporta i tuoi dati'}><Download size={18} /> Esporta</button>
                     <button onClick={() => setIsImportModalOpen(true)} disabled={userPlan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={userPlan!=='pro'?'Funzionalità Pro':'Importa da un file'}><Upload size={18} /> Importa</button>
                     <button onClick={() => setIsAddModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Plus size={18} /> Nuovo Post</button>
                 </div>
             </div>
             
-           <DndContext onDragEnd={handleDragEnd}>
+            <DndContext onDragEnd={handleDragEnd} disabled={!isDesktop}>
                 {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView /> ) : ( <FilteredListView posts={postsDaCreareFiltrati} filterCategory={filterCategory!} onBack={handleShowCalendar} onPostClick={handleCardClick} /> )}
             </DndContext>
 
-            {viewMode === 'calendar' && PERPETUAL_SCROLL_ENABLED && visibleWeeksCount < allWeeks.length && (
+            {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (
                 <div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400">
                     <p>Caricamento...</p>
                 </div>
@@ -258,6 +256,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
             
             {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModal} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} userPlan={userPlan}/> )}
             {isImportModalOpen && (<ImportModal onClose={handleCloseModal} onImport={handleImport} />)}
+            {isProjectModalOpen && (<ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} onAddProject={handleAddProject} onDeleteProject={handleDeletePost} />)}
         </div>
     );
 };
