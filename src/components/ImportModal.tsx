@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
 import { X, UploadCloud, FileJson, AlertTriangle } from 'lucide-react';
 
-// Tipi di dati che il componente gestisce
 type ImportMode = 'add' | 'overwrite';
 
-// Props che il componente riceve e comunica
 interface ImportModalProps {
   onClose: () => void;
   onImport: (posts: any[], mode: ImportMode) => void;
@@ -12,7 +10,7 @@ interface ImportModalProps {
 
 export const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [importMode, setImportMode] = useState<ImportMode>('add'); // Default: Aggiungi
+  const [importMode, setImportMode] = useState<ImportMode>('add');
   const [error, setError] = useState<string>('');
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -63,7 +61,6 @@ export const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) =
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Colonna Istruzioni */}
           <div className="text-sm text-gray-600 dark:text-gray-300 space-y-3">
             <h3 className="font-semibold text-base text-gray-800 dark:text-gray-100">1. Prepara il file di importazione</h3>
             <p>Carica un file in formato `.json` contenente una lista (array) di post. Il modo più semplice è usare un file generato dalla funzione <strong className="text-red-500">Esporta</strong> come modello.</p>
@@ -77,7 +74,6 @@ export const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) =
             </ul>
           </div>
 
-          {/* Colonna Upload e Scelta Modalità */}
           <div className="space-y-6">
              <h3 className="font-semibold text-base text-gray-800 dark:text-gray-100">2. Seleziona il file</h3>
             <div className="bg-gray-50 dark:bg-gray-700/50 p-6 rounded-lg flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600">

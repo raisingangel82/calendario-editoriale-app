@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { db, auth } from '../firebase';
-import { User, onAuthStateChanged } from 'firebase/auth';
+import React, { useState, useEffect, useRef } from 'react';
+import { db } from '../firebase';
+import type { User } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
+import { DndContext, useDroppable } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, writeBatch, getDocs } from 'firebase/firestore';
 import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, getHours, setHours } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { DndContext, DragEndEvent, useDroppable } from '@dnd-kit/core';
-
 import { ContenutoCard } from './ContenutoCard.tsx';
 import { ContenutoModal } from './ContenutoModal.tsx';
 import { Plus, Download, Upload, Settings } from 'lucide-react';
@@ -206,11 +207,6 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
             userId: user.uid,
         });
     };
-
-    const handleDeleteProject = async (projectId: string) => {
-        await deleteDoc(doc(db, 'progetti', projectId));
-    };
-
     const postsDaCreareFiltrati = posts
         .filter(p => !p.statoProdotto && filterCategory && getCategoriaGenerica(p.tipoContenuto) === filterCategory)
         .sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0));
@@ -244,7 +240,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
                 </div>
             </div>
             
-            <DndContext onDragEnd={handleDragEnd} disabled={!isDesktop}>
+            <DndContext onDragEnd={handleDragEnd} >
                 {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView /> ) : ( <FilteredListView posts={postsDaCreareFiltrati} filterCategory={filterCategory!} onBack={handleShowCalendar} onPostClick={handleCardClick} /> )}
             </DndContext>
 

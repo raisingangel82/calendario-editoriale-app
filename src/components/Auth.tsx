@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { auth, db } from '../firebase';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
   EmailAuthProvider,
-  linkWithCredential,
-  UserCredential
+  linkWithCredential 
 } from 'firebase/auth';
+import type { UserCredential } from 'firebase/auth';
 import { doc, setDoc, Timestamp } from 'firebase/firestore';
 
 export const Auth: React.FC = () => {
@@ -15,13 +15,12 @@ export const Auth: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Funzione semplificata: ora crea solo il profilo utente, senza progetti.
   const createUserProfileDocument = async (userCredential: UserCredential) => {
     const user = userCredential.user;
     const userRef = doc(db, "users", user.uid);
     await setDoc(userRef, {
       email: user.email,
-      plan: 'free', // Ogni nuovo utente parte con il piano gratuito
+      plan: 'free',
       createdAt: Timestamp.now()
     });
   };
@@ -29,23 +28,17 @@ export const Auth: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    
     try {
       if (isLogin) {
-        // Logica per il Login (invariata)
         await signInWithEmailAndPassword(auth, email, password);
       } else {
-        // Logica per la Registrazione
         const currentUser = auth.currentUser;
-
         if (currentUser && currentUser.isAnonymous) {
           const credential = EmailAuthProvider.credential(email, password);
           const userCredential = await linkWithCredential(currentUser, credential);
-          // Non crea più i progetti di default
           await createUserProfileDocument(userCredential);
         } else {
           const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-           // Non crea più i progetti di default
           await createUserProfileDocument(userCredential);
         }
       }
@@ -57,7 +50,6 @@ export const Auth: React.FC = () => {
       } else {
         setError('Si è verificato un errore. Riprova.');
       }
-      console.error("Errore di autenticazione:", err);
     }
   };
 
@@ -99,9 +91,7 @@ export const Auth: React.FC = () => {
               className={inputStyle}
             />
           </div>
-
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
-
           <div>
             <button
               type="submit"

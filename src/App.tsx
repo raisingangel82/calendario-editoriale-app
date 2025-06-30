@@ -4,6 +4,7 @@ import { ThemeSwitcher } from './components/ThemeSwitcher.tsx';
 import { Auth } from './components/Auth.tsx';
 import { auth } from './firebase.ts';
 import { signOut } from 'firebase/auth';
+// ▼▼▼ MODIFICA: Aggiunta la parola 'type' per un'importazione precisa ▼▼▼
 import type { User } from 'firebase/auth';
 import { LogOut } from 'lucide-react';
 import { AccountIcon } from './components/AccountIcon.tsx';
@@ -34,7 +35,9 @@ function App() {
         <>
           <header className="py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8">
             <AccountIcon user={user} />
-            <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">Calendario Editoriale</h1>
+            <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">
+              Calendario Editoriale
+            </h1>
             <div className="flex items-center gap-2">
               <ThemeSwitcher />
               <button onClick={handleLogout} className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Logout">
@@ -54,4 +57,5 @@ function App() {
     </div>
   );
 }
+
 export default App;
