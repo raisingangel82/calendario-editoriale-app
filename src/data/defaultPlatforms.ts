@@ -4,6 +4,7 @@ export interface PlatformData {
   name: string;
   icon: string; // La useremo per mostrare l'icona
   baseUrl: string; // Il link base per la condivisione
+  isActive?: boolean; // <-- AGGIUNGI QUESTA RIGA
 }
 
 // Lista di piattaforme per il piano FREE

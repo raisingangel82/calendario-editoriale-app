@@ -6,6 +6,8 @@ export interface Progetto {
   id: string;
   nome: string;
   color?: string; // <-- AGGIUNGI QUESTA RIGA
+  sintesi?: string;      // <-- AGGIUNGI QUESTA RIGA
+  immagineUrl?: string; // <-- AGGIUNGI QUESTA RIGA
 }
 
 export interface Post {

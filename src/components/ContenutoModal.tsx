@@ -4,7 +4,8 @@ import { X, Trash2, ExternalLink, Copy } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { freePlatforms, allDefaultPlatforms, PlatformData } from '../data/defaultPlatforms';
+import { freePlatforms, allDefaultPlatforms } from '../data/defaultPlatforms';
+import type { PlatformData } from '../data/defaultPlatforms';
 import type { Post, Progetto } from '../types';
 
 interface ContenutoModalProps {
@@ -86,13 +87,6 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     }
   };
   
-  const handlePublishRedirect = () => {
-    const allPlatforms = [...allDefaultPlatforms, ...customPlatforms];
-    const platformData = allPlatforms.find(p => p.name === piattaforma);
-    const url = platformData ? platformData.baseUrl : 'https://google.com';
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
-
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleEsc);

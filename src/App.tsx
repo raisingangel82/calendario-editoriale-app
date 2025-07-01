@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect, useRef } from 'react'; // Aggiunti useRef e tipi
+import { useState, useEffect, useRef } from 'react'; // Aggiunti useRef e tipi
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { Calendario } from './components/Calendario';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
