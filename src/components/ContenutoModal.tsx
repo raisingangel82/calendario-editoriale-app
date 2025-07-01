@@ -1,25 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
 import { X, Trash2, ExternalLink, Copy } from 'lucide-react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useAuth } from '../context/AuthContext';
+import { freePlatforms, allDefaultPlatforms, PlatformData } from '../data/defaultPlatforms';
 import type { Post, Progetto } from '../types';
 
 interface ContenutoModalProps {
   post?: Post;
   progetti: Progetto[];
-  userPlan: 'free' | 'pro';
   onClose: () => void;
   onSave: (dataToSave: any) => void;
   onDelete: (postId: string) => void;
   onDuplicate: (post: Post) => void;
 }
 
-export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, userPlan, onClose, onSave, onDelete, onDuplicate }) => {
-  const isEditMode = !!post;
+export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, onClose, onSave, onDelete, onDuplicate }) => {
+  const { user } = useAuth();
+  const [customPlatforms, setCustomPlatforms] = useState<PlatformData[]>([]);
+  
+  useEffect(() => {
+    if (user?.plan === 'pro') {
+      const fetchCustomPlatforms = async () => {
+        const q = query(collection(db, "platforms"), where("userId", "==", user.uid));
+        const querySnapshot = await getDocs(q);
+        const fetchedPlatforms = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlatformData));
+        setCustomPlatforms(fetchedPlatforms);
+      };
+      fetchCustomPlatforms();
+    }
+  }, [user]);
 
-  const [libro, setLibro] = useState(post?.libro || (progetti.length > 0 ? progetti[0].nome : ''));
-  const [piattaforma, setPiattaforma] = useState(post?.piattaforma || 'Instagram');
+  const availablePlatforms = user?.plan === 'pro' 
+    ? [...allDefaultPlatforms, ...customPlatforms] 
+    : freePlatforms;
+
+  const isEditMode = !!post;
+  
+  const [projectId, setProjectId] = useState(post?.projectId || (progetti.length > 0 ? progetti[0].id : ''));
+  const [piattaforma, setPiattaforma] = useState(post?.piattaforma || (availablePlatforms.length > 0 ? availablePlatforms[0].name : ''));
   const [tipoContenuto, setTipoContenuto] = useState(post?.tipoContenuto || '');
   const [descrizione, setDescrizione] = useState(post?.descrizione || '');
+  const [primoCommento, setPrimoCommento] = useState(post?.primoCommento || '');
   const [urlMedia, setUrlMedia] = useState(post?.urlMedia || '');
   const [data, setData] = useState(post?.data ? formatDateFns(post.data.toDate(), "yyyy-MM-dd'T'HH:mm") : "");
   const [isProdotto, setIsProdotto] = useState(post?.statoProdotto || false);
@@ -43,19 +66,19 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
       return;
     }
     const dataToSave: any = {
-      libro, piattaforma, tipoContenuto, descrizione, urlMedia,
+      projectId, piattaforma, tipoContenuto, descrizione, primoCommento, urlMedia,
       data: new Date(data), statoProdotto: isProdotto, statoPubblicato: isPubblicato,
     };
     onSave(dataToSave);
   };
 
   const handleDelete = () => {
-    if (isEditMode && post) { if (window.confirm(`Sei sicuro di voler eliminare il post per "${post.libro}"?`)) onDelete(post.id); }
+    if (isEditMode && post) { if (window.confirm(`Sei sicuro di voler eliminare questo post?`)) onDelete(post.id); }
   };
 
   const handleDuplicate = () => {
     if (isEditMode && post) {
-      if (userPlan !== 'pro') {
+      if (user?.plan !== 'pro') {
         alert("La duplicazione dei post è una funzionalità Pro.");
         return;
       }
@@ -64,8 +87,9 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   };
   
   const handlePublishRedirect = () => {
-    const urls: { [key: string]: string } = { 'Instagram': 'https://www.instagram.com/', 'X': 'https://x.com/compose/post', 'YouTube': 'https://studio.youtube.com/', 'TikTok': 'https://www.tiktok.com/upload', 'Threads': 'https://www.threads.net/' };
-    const url = urls[piattaforma] || 'https://google.com';
+    const allPlatforms = [...allDefaultPlatforms, ...customPlatforms];
+    const platformData = allPlatforms.find(p => p.name === piattaforma);
+    const url = platformData ? platformData.baseUrl : 'https://google.com';
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -87,18 +111,23 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
           <button onClick={onClose} className="p-2 rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"><X size={20} /></button>
         </div>
         
+        {/* ▼▼▼ SEZIONE CON TUTTI I CAMPI DEL FORM ▼▼▼ */}
         <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="libro" className={labelStyle}>Libro / Progetto</label>
-              <select id="libro" value={libro} onChange={e => setLibro(e.target.value)} className={selectStyle}>
-                {progetti.map(p => <option key={p.id} value={p.nome}>{p.nome}</option>)}
+              <label htmlFor="project-select" className={labelStyle}>Libro / Progetto</label>
+              <select id="project-select" value={projectId} onChange={e => setProjectId(e.target.value)} className={selectStyle}>
+                {progetti.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
               </select>
             </div>
             <div>
               <label htmlFor="piattaforma" className={labelStyle}>Piattaforma</label>
                <select id="piattaforma" value={piattaforma} onChange={e => setPiattaforma(e.target.value)} className={selectStyle}>
-                <option>Instagram</option><option>X</option><option>Threads</option><option>TikTok</option><option>YouTube</option>
+                {availablePlatforms.map(platform => (
+                  <option key={platform.id} value={platform.name}>
+                    {platform.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -112,7 +141,14 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
                 <optgroup label="Video"><option value="Reel">Reel</option><option value="Booktrailer">Booktrailer</option><option value="Podcast">Podcast</option><option value="Vlog">Vlog</option></optgroup>
             </select>
           </div>
-          <div><label htmlFor="descrizione" className={labelStyle}>Descrizione / Testo</label><textarea id="descrizione" value={descrizione} onChange={e => setDescrizione(e.target.value)} rows={3} className={`${inputBaseStyle} resize-none`}/></div>
+          <div>
+            <label htmlFor="descrizione" className={labelStyle}>Descrizione / Testo</label>
+            <textarea id="descrizione" value={descrizione} onChange={e => setDescrizione(e.target.value)} rows={3} className={`${inputBaseStyle} resize-none`}/>
+          </div>
+          <div>
+            <label htmlFor="primoCommento" className={labelStyle}>Primo Commento</label>
+            <textarea id="primoCommento" value={primoCommento} onChange={e => setPrimoCommento(e.target.value)} rows={2} className={`${inputBaseStyle} resize-none`} placeholder="Testo da inserire nel primo commento (es. per hashtag)..."/>
+          </div>
           <div>
             <label htmlFor="urlMedia" className={labelStyle}>URL Media</label>
             <div className="flex items-center gap-2">
@@ -127,6 +163,8 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
               <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isPubblicato} onChange={handlePubblicatoChange} className="h-4 w-4 rounded-sm border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-900 text-red-600 focus:ring-red-500" /><span className="font-medium text-gray-700 dark:text-gray-300">Pubblicato</span></label>
           </div>
         </div>
+        
+        {/* ▼▼▼ SEZIONE CON I PULSANTI DI AZIONE ▼▼▼ */}
         <div className="mt-8 pt-5 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
             {isEditMode && (
@@ -134,14 +172,16 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
                 <button onClick={handleDelete} className="w-full justify-center font-semibold text-white bg-red-600 border border-red-600 py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2">
                   <Trash2 size={16} /> Elimina
                 </button>
-                <button onClick={handleDuplicate} disabled={userPlan !== 'pro'} className="w-full justify-center font-semibold text-gray-700 bg-gray-100 border border-gray-300 py-2 px-4 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2" title={userPlan !== 'pro' ? 'Funzionalità Pro' : 'Duplica Post'}>
+                <button onClick={handleDuplicate} disabled={user?.plan !== 'pro'} className="w-full justify-center font-semibold text-gray-700 bg-gray-100 border border-gray-300 py-2 px-4 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2" title={user?.plan !== 'pro' ? 'Funzionalità Pro' : 'Duplica Post'}>
                   <Copy size={16} /> Duplica
                 </button>
               </div>
             )}
           </div>
-          <div className={`grid gap-3 w-full sm:w-auto ${isEditMode ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
-            {isEditMode && post && ( <button onClick={handlePublishRedirect} className="w-full justify-center font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"><ExternalLink size={16} /> Pubblica</button> )}
+          <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">
+            <button type="button" onClick={onClose} className="w-full justify-center font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+              Annulla
+            </button>
             <button onClick={handleSaveChanges} className="w-full justify-center font-semibold text-white bg-gray-800 dark:bg-gray-50 dark:text-gray-900 py-2 px-4 rounded-lg hover:bg-black dark:hover:bg-white transition-colors">
               {isEditMode ? 'Salva' : 'Crea Post'}
             </button>

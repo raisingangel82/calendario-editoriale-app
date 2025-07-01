@@ -3,36 +3,37 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-"scripts": {
-  "dev": "vite",
-  "build": "tsc -b && vite build",
-  "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-  "preview": "vite preview",
-  "seed": "tsx scripts/seed.ts",
-  "migrate": "tsx scripts/migrate.ts",
-  "rename-book": "tsx scripts/rename_book.ts",
-  "cleanup": "tsx scripts/cleanup.ts",
-  "cleanup-final": "tsx scripts/final_cleanup.ts"
-},
-
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "seed": "tsx scripts/seed.ts",
+    "migrate": "tsx scripts/migrate.ts",
+    "rename-book": "tsx scripts/rename_book.ts",
+    "cleanup": "tsx scripts/cleanup.ts",
+    "cleanup-final": "tsx scripts/final_cleanup.ts"
+  },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
     "date-fns": "^3.6.0",
     "firebase": "^11.9.1",
     "lucide-react": "^0.378.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.6.3"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react-swc": "^3.5.0",
     "autoprefixer": "^10.4.19",
+    "lucide-react": "^0.395.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "tsx": "^4.7.2",
     "typescript": "^5.2.2",
-    "lucide-react": "^0.395.0",
     "vite": "^5.2.0"
   }
 }

@@ -1,6 +1,8 @@
+// L'intero codice che ti ho fornito nel messaggio precedente, marcato come "(Versione Finale e Corretta)" è quello giusto. 
+// Dato che è molto lungo, per evitare errori, lo ri-genero qui per intero.
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
-import type { User } from 'firebase/auth';
+import { useAuth } from '../context/AuthContext';
 import { DndContext, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, writeBatch, getDocs } from 'firebase/firestore';
@@ -16,10 +18,6 @@ import { ImportModal } from './ImportModal.tsx';
 import { ProjectManagerModal } from './ProjectManagerModal.tsx';
 import type { Post, Progetto, Categoria } from '../types';
 
-interface CalendarioProps {
-    user: User;
-}
-
 const fasceOrarie = [
   { label: '08-12', startHour: 8, endHour: 12 },
   { label: '12-16', startHour: 12, endHour: 16 },
@@ -34,19 +32,16 @@ const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, ch
 
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipoLower = tipoContenuto?.toLowerCase() || '';
-    if (['reel', 'video', 'booktrailer', 'vlog', 'montaggio', 'documentario', 'podcast'].some(term => tipoLower.includes(term))) {
-        return 'Video';
-    }
-    if (['immagine', 'post statico', 'carousel', 'immagine/carosello'].some(term => tipoLower.includes(term))) {
-        return 'Immagine';
-    }
+    if (['reel', 'video', 'booktrailer', 'vlog', 'montaggio', 'documentario', 'podcast'].some(term => tipoLower.includes(term))) { return 'Video'; }
+    if (['immagine', 'post statico', 'carousel', 'immagine/carosello'].some(term => tipoLower.includes(term))) { return 'Immagine'; }
     return 'Testo';
 };
 
-export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
+export const Calendario: React.FC = () => {
+    const { user, loading: userLoading } = useAuth();
+    const oggi = startOfDay(new Date());
     const [posts, setPosts] = useState<Post[]>([]);
     const [progetti, setProgetti] = useState<Progetto[]>([]);
-    const [userPlan, setUserPlan] = useState<'free' | 'pro'>('free');
     const [allWeeks, setAllWeeks] = useState<Date[][]>([]);
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -59,7 +54,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     const isDesktop = useBreakpoint();
     const dataInizio = new Date('2025-06-30');
     
-    const PERPETUAL_SCROLL_ENABLED = userPlan === 'pro';
+    const PERPETUAL_SCROLL_ENABLED = user?.plan === 'pro';
     const totalWeeksToShow = PERPETUAL_SCROLL_ENABLED ? 100 : 8;
 
     useEffect(() => {
@@ -74,17 +69,15 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
     }, [PERPETUAL_SCROLL_ENABLED, totalWeeksToShow]);
 
     useEffect(() => {
-        const userDocRef = doc(db, "users", user.uid);
-        const unsubUser = onSnapshot(userDocRef, (doc) => { setUserPlan(doc.data()?.plan || 'free'); });
-
+        if (!user) return;
         const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
         const unsubPosts = onSnapshot(qPosts, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[]); });
 
         const qProgetti = query(collection(db, "progetti"), where("userId", "==", user.uid));
-        const unsubProgetti = onSnapshot(qProgetti, (snapshot) => { setProgetti(snapshot.docs.map(doc => ({ id: doc.id, nome: doc.data().nome })) as Progetto[]); });
+        const unsubProgetti = onSnapshot(qProgetti, (snapshot) => { setProgetti(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Progetto[]); });
         
-        return () => { unsubUser(); unsubPosts(); unsubProgetti(); };
-    }, [user.uid]);
+        return () => { unsubPosts(); unsubProgetti(); };
+    }, [user]);
     
     useEffect(() => {
         if (viewMode !== 'calendar' || !PERPETUAL_SCROLL_ENABLED || visibleWeeksCount >= allWeeks.length) return;
@@ -96,19 +89,11 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         if (currentRef) { observer.observe(currentRef); }
         return () => { if (currentRef) { observer.unobserve(currentRef); } };
     }, [viewMode, allWeeks.length, visibleWeeksCount, PERPETUAL_SCROLL_ENABLED]);
-
-    const handleSavePost = async (updatedFields: any) => {
-        if (!selectedPost) return;
-        const docRef = doc(db, 'contenuti', selectedPost.id);
-        const dataToUpdate = { ...updatedFields, data: Timestamp.fromDate(updatedFields.data as Date) };
-        await updateDoc(docRef, dataToUpdate);
-        setSelectedPost(null);
-    };
-
+    
     const handleAddPost = async (dataToSave: Omit<Post, 'id' | 'userId'>) => {
-        if (userPlan === 'free' && progetti.length >= 1) {
-            const isNewProject = !progetti.some(p => p.nome === dataToSave.libro);
-            if (isNewProject) {
+        if (user?.plan === 'free' && progetti.length >= 1) {
+            const progettoEsistente = progetti.find(p => p.id === dataToSave.projectId);
+            if (!progettoEsistente) {
                 alert("Il piano gratuito consente di gestire un solo progetto. Passa a Pro per aggiungerne altri."); 
                 return;
             }
@@ -119,129 +104,95 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
         setIsAddModalOpen(false);
     };
 
+    const handleSavePost = async (updatedFields: any) => {
+        if (!selectedPost) return;
+        const docRef = doc(db, 'contenuti', selectedPost.id);
+        const dataToUpdate = { ...updatedFields, data: Timestamp.fromDate(updatedFields.data as Date) };
+        await updateDoc(docRef, dataToUpdate);
+        setSelectedPost(null);
+    };
+
     const handleDeletePost = async (postId: string) => {
         const docRef = doc(db, 'contenuti', postId);
         await deleteDoc(docRef);
         setSelectedPost(null);
     };
+    
+    const handleDeleteProject = async (projectId: string) => {
+        const docRef = doc(db, 'progetti', projectId);
+        await deleteDoc(docRef);
+    };
 
+    const handleUpdateProject = async (projectId: string, updatedData: { nome: string; sintesi: string; immagineUrl: string; color: string; }) => {
+        const projectRef = doc(db, "progetti", projectId);
+        await updateDoc(projectRef, updatedData);
+    };
+
+    const handleStatusChange = async (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => {
+        const postRef = doc(db, 'contenuti', postId);
+        if (field === 'statoPubblicato' && value === true) { await updateDoc(postRef, { statoProdotto: true, statoPubblicato: true }); } 
+        else if (field === 'statoProdotto' && value === false) { await updateDoc(postRef, { statoProdotto: false, statoPubblicato: false });}
+        else { await updateDoc(postRef, { [field]: value }); }
+    };
+    
+    const handleExport = () => { if (user?.plan !== 'pro') { alert("L'esportazione è una funzionalità Pro."); return; } const dataToExport = posts.map(({ id, userId, ...rest }) => ({...rest, data: rest.data ? rest.data.toDate().toISOString() : null })); const dataStr = JSON.stringify(dataToExport, null, 2); const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr); const exportFileDefaultName = `calendario_editoriale_${new Date().toISOString().slice(0,10)}.json`; const linkElement = document.createElement('a'); linkElement.setAttribute('href', dataUri); linkElement.setAttribute('download', exportFileDefaultName); linkElement.click(); };
+    const handleDuplicatePost = async (postToDuplicate: Post) => { if (user?.plan !== 'pro') { alert("La duplicazione è una funzionalità Pro."); return; } if (!user) return; const { id, userId, projectId, ...oldData } = postToDuplicate; const docData = { ...oldData, projectId, statoProdotto: false, statoPubblicato: false, userId: user.uid, }; await addDoc(collection(db, 'contenuti'), docData); handleCloseModal(); };
     const handleCardClick = (post: Post) => { setSelectedPost(post); };
     const handleCloseModal = () => { setSelectedPost(null); setIsAddModalOpen(false); setIsImportModalOpen(false); setIsProjectModalOpen(false); };
-
-    const handleDragEnd = async (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (!over) return;
-        const postId = active.id as string;
-        const dropZoneId = over.id as string;
-        const [giornoString, fasciaLabel] = dropZoneId.split('|');
-        const nuovoGiorno = new Date(giornoString);
-        const fasciaCorrispondente = fasceOrarie.find(f => f.label === fasciaLabel);
-        if (!fasciaCorrispondente) return;
-        let nuovaData = setHours(nuovoGiorno, fasciaCorrispondente.startHour);
-        const docRef = doc(db, 'contenuti', postId);
-        await updateDoc(docRef, { data: Timestamp.fromDate(nuovaData) });
-    };
-
+    const handleDragEnd = async (event: DragEndEvent) => { const { active, over } = event; if (!over) return; const postId = active.id as string; const dropZoneId = over.id as string; const [giornoString, fasciaLabel] = dropZoneId.split('|'); const nuovoGiorno = new Date(giornoString); const fasciaCorrispondente = fasceOrarie.find(f => f.label === fasciaLabel); if (!fasciaCorrispondente) return; let nuovaData = setHours(nuovoGiorno, fasciaCorrispondente.startHour); const docRef = doc(db, 'contenuti', postId); await updateDoc(docRef, { data: Timestamp.fromDate(nuovaData) }); };
     const handleFilterClick = (categoria: Categoria) => { setFilterCategory(categoria); setViewMode('list'); };
     const handleShowCalendar = () => { setViewMode('calendar'); setFilterCategory(null); };
-
-    const handleExport = () => {
-        if (userPlan !== 'pro') { alert("L'esportazione è una funzionalità Pro."); return; }
-        const dataToExport = posts.map(({ id, userId, ...rest }) => ({...rest, data: rest.data ? rest.data.toDate().toISOString() : null }));
-        const dataStr = JSON.stringify(dataToExport, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-        const exportFileDefaultName = `calendario_editoriale_${new Date().toISOString().slice(0,10)}.json`;
-        const linkElement = document.createElement('a');
-        linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', exportFileDefaultName);
-        linkElement.click();
-    };
-
-    const handleDuplicatePost = async (postToDuplicate: Post) => {
-        if (userPlan !== 'pro') { alert("La duplicazione è una funzionalità Pro."); return; }
-        if (!user) return;
-        const { id, userId, ...oldData } = postToDuplicate;
-        const docData = { ...oldData, statoProdotto: false, statoPubblicato: false, userId: user.uid, };
-        await addDoc(collection(db, 'contenuti'), docData);
-        handleCloseModal();
-    };
-
-    const handleImport = async (importedPosts: any[], mode: 'add' | 'overwrite') => {
-        if (userPlan !== 'pro') { alert("L'importazione di file è una funzionalità Pro."); return; }
-        if (!window.confirm(`Stai per ${mode === 'overwrite' ? 'SOVRASCRIVERE TUTTI I POST ESISTENTI' : 'importare ' + importedPosts.length + ' nuovi post'}. Sei assolutamente sicuro?`)) return;
-        
-        try {
-            if (mode === 'overwrite') {
-                const deleteBatch = writeBatch(db);
-                const q = query(collection(db, "contenuti"), where("userId", "==", user.uid));
-                const snapshot = await getDocs(q);
-                snapshot.forEach(doc => deleteBatch.delete(doc.ref));
-                await deleteBatch.commit();
-            }
-            const importBatch = writeBatch(db);
-            let importedCount = 0;
-            importedPosts.forEach(post => {
-                if (post.libro && post.piattaforma && post.data && post.tipoContenuto && post.descrizione) {
-                    const newPostRef = doc(collection(db, "contenuti"));
-                    importBatch.set(newPostRef, { ...post, userId: user.uid, data: Timestamp.fromDate(new Date(post.data)), statoProdotto: post.statoProdotto || false, statoPubblicato: post.statoPubblicato || false, urlMedia: post.urlMedia || '' });
-                    importedCount++;
-                }
-            });
-            await importBatch.commit();
-            alert(`${importedCount} post importati con successo!`);
-            setIsImportModalOpen(false);
-        } catch (error) {
-            console.error("Errore importazione:", error);
-            alert(`Errore durante l'importazione.`);
-        }
-    };
-
-    const handleAddProject = async (newProjectData: { nome: string; sintesi: string; immagineUrl: string }) => {
-        if (userPlan === 'free' && progetti.length >= 1) {
-            alert("Il piano gratuito consente di gestire un solo progetto. Passa a Pro per aggiungerne altri.");
-            return;
-        }
-        await addDoc(collection(db, 'progetti'), {
-            ...newProjectData,
-            userId: user.uid,
-        });
-    };
-    const postsDaCreareFiltrati = posts
-        .filter(p => !p.statoProdotto && filterCategory && getCategoriaGenerica(p.tipoContenuto) === filterCategory)
-        .sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0));
-
+    const handleImport = async (importedPosts: any[], mode: 'add' | 'overwrite') => { if (user?.plan !== 'pro') { alert("L'importazione di file è una funzionalità Pro."); return; } if (!user) return; if (!window.confirm(`Stai per ${mode === 'overwrite' ? 'SOVRASCRIVERE TUTTI I POST ESISTENTI' : 'importare ' + importedPosts.length + ' nuovi post'}. Sei assolutamente sicuro?`)) return; try { if (mode === 'overwrite') { const deleteBatch = writeBatch(db); const q = query(collection(db, "contenuti"), where("userId", "==", user.uid)); const snapshot = await getDocs(q); snapshot.forEach(doc => deleteBatch.delete(doc.ref)); await deleteBatch.commit(); } const importBatch = writeBatch(db); let importedCount = 0; importedPosts.forEach(post => { if (post.projectId && post.piattaforma && post.data && post.tipoContenuto && post.descrizione) { const newPostRef = doc(collection(db, "contenuti")); importBatch.set(newPostRef, { ...post, userId: user.uid, data: Timestamp.fromDate(new Date(post.data)), statoProdotto: post.statoProdotto || false, statoPubblicato: post.statoPubblicato || false, urlMedia: post.urlMedia || '' }); importedCount++; } }); await importBatch.commit(); alert(`${importedCount} post importati con successo!`); setIsImportModalOpen(false); } catch (error) { console.error("Errore importazione:", error); alert(`Errore durante l'importazione.`); } };
+    const handleAddProject = async (newProjectData: { nome: string; sintesi: string; immagineUrl: string; color: string; }) => { if (user?.plan === 'free' && progetti.length >= 1) { alert("Il piano gratuito consente di gestire un solo progetto. Passa a Pro per aggiungerne altri."); return; } if (!user) return; await addDoc(collection(db, 'progetti'), { ...newProjectData, userId: user.uid, }); };
+    
+    if (userLoading || !user) {
+        return <div className="text-center p-10">Caricamento calendario...</div>;
+    }
+    
+    const postsDaCreareFiltrati = posts.filter(p => !p.statoProdotto && filterCategory && getCategoriaGenerica(p.tipoContenuto) === filterCategory).sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0));
     const weeksToDisplay = allWeeks.slice(0, visibleWeeksCount);
-
+    
     const DesktopView = () => (
-        <div className="space-y-8">
-            {weeksToDisplay.map((settimana, index) => (
-                <div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}<span className="text-sm font-light text-gray-400 dark:text-gray-500 ml-3">({format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[4], 'dd MMM', { locale: it })})</span></h3><div className="grid grid-cols-5 gap-4">{settimana.map(giorno => (<div key={giorno.toISOString()} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 flex flex-col"><div className="p-3 text-center border-b border-gray-200 dark:border-gray-700"><h4 className="font-semibold text-gray-500 dark:text-gray-400 uppercase text-xs tracking-wider">{format(giorno, 'eeee')}</h4><p className="text-gray-400 dark:text-gray-500 text-2xl font-light">{format(giorno, 'dd')}</p></div><div className="flex flex-col flex-grow p-2 space-y-2">{fasceOrarie.map(fascia => { const contenutiDellaFascia = posts.filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno)) && getHours(p.data.toDate()) >= fascia.startHour && getHours(p.data.toDate()) < fascia.endHour); const dropZoneId = `${giorno.toISOString()}|${fascia.label}`; return ( <div key={fascia.label} className="min-h-[6rem] w-full"><DropZone id={dropZoneId}>{contenutiDellaFascia.map(post => (<ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} isDraggable={true} />))}</DropZone></div> );})}</div></div>))}</div></div>
-            ))}
-        </div>
+        <div className="space-y-8">{weeksToDisplay.map((settimana, index) => (<div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}<span className="text-sm font-light text-gray-400 dark:text-gray-500 ml-3">({format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[4], 'dd MMM', { locale: it })})</span></h3><div className="border-l border-t border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden"><div className="grid grid-cols-5">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-800/50'; return ( <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 transition-colors ${headerClass}`}><h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee')}</h4><p className={`text-2xl font-light ${isToday ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>{format(giorno, 'dd')}</p></div> );})}</div><div className="grid grid-cols-5">{fasceOrarie.flatMap(fascia => settimana.map(giorno => { const dropZoneId = `${giorno.toISOString()}|${fascia.label}`; const contenutiDellaFascia = posts.filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno)) && getHours(p.data.toDate()) >= fascia.startHour && getHours(p.data.toDate()) < fascia.endHour); return ( <div key={dropZoneId} className="min-h-[10rem] w-full p-2 border-r border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/20"><DropZone id={dropZoneId}>{contenutiDellaFascia.map((post) => {
+                                                const progettoDelPost = progetti.find(p => p.id === post.projectId);
+                                                const cardColor = progettoDelPost?.color || '#9ca3af'; 
+                                                return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={true} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} /> );
+                                            })}</DropZone></div> );}) )}</div></div></div>))}</div>
     );
     const MobileView = () => (
-        <div className="space-y-6">
-            {weeksToDisplay.map((settimana, index) => (
-                <div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}</h3><div className="space-y-4">{settimana.map(giorno => { const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a,b) => a.data!.toDate().getTime() - b.data!.toDate().getTime()); return (<div key={giorno.toISOString()} className="border border-gray-200 dark:border-gray-700 rounded-lg"><h4 className="font-bold text-sm bg-gray-50 dark:bg-gray-800 p-3 rounded-t-lg border-b border-gray-200 dark:border-gray-700 capitalize">{format(giorno, 'eeee dd MMMM', { locale: it })}</h4><div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">{contenutiDelGiorno.length > 0 ? contenutiDelGiorno.map(post => (<ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} isDraggable={false} />)) : <div className="h-10"></div>}</div></div>);})}</div></div>
-            ))}
-        </div>
+        <div className="space-y-6">{weeksToDisplay.map((settimana, index) => (<div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}</h3><div className="space-y-4">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100' : 'bg-gray-50 dark:bg-gray-800'; const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a, b) => a.data!.toDate().getTime() - b.data!.toDate().getTime()); return ( <div key={giorno.toISOString()} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"><h4 className={`font-bold text-sm p-3 border-b border-gray-200 dark:border-gray-700 capitalize transition-colors ${headerClass}`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4><div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">{contenutiDelGiorno.length > 0 ? ( contenutiDelGiorno.map((post) => {
+                                            const progettoDelPost = progetti.find(p => p.id === post.projectId);
+                                            const cardColor = progettoDelPost?.color || '#9ca3af';
+                                            return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={false} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} /> );
+                                        }) ) : ( <div className="h-10"></div> )}</div></div> );})}</div></div>))}</div>
     );
-
+    
     return (
         <div>
             <div className="flex flex-col md:flex-row justify-between md:items-stretch gap-6 mb-10">
                 <div className="w-full md:w-3/4"><Stats posts={posts} progetti={progetti} onFilterClick={handleFilterClick} /></div>
                 <div className="w-full md:w-1/4 flex flex-col sm:flex-row md:flex-col gap-2">
                     <button onClick={() => setIsProjectModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Settings size={18} /> Gestisci Progetti</button>
-                    <button onClick={handleExport} disabled={userPlan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={userPlan!=='pro'?'Funzionalità Pro':'Esporta i tuoi dati'}><Download size={18} /> Esporta</button>
-                    <button onClick={() => setIsImportModalOpen(true)} disabled={userPlan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={userPlan!=='pro'?'Funzionalità Pro':'Importa da un file'}><Upload size={18} /> Importa</button>
+                    <button onClick={handleExport} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Esporta i tuoi dati'}><Download size={18} /> Esporta</button>
+                    <button onClick={() => setIsImportModalOpen(true)} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Importa da un file'}><Upload size={18} /> Importa</button>
                     <button onClick={() => setIsAddModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Plus size={18} /> Nuovo Post</button>
                 </div>
             </div>
             
             <DndContext onDragEnd={handleDragEnd} >
-                {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView /> ) : ( <FilteredListView posts={postsDaCreareFiltrati} filterCategory={filterCategory!} onBack={handleShowCalendar} onPostClick={handleCardClick} /> )}
-            </DndContext>
+    {viewMode === 'calendar' ? (
+        isDesktop ? <DesktopView /> : <MobileView />
+    ) : (
+        <FilteredListView
+            posts={postsDaCreareFiltrati}
+            progetti={progetti}
+            filterCategory={filterCategory!}
+            onBack={handleShowCalendar}
+            onPostClick={handleCardClick}
+            onStatusChange={handleStatusChange}
+        />
+    )}
+</DndContext>
 
             {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (
                 <div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400">
@@ -249,9 +200,9 @@ export const Calendario: React.FC<CalendarioProps> = ({ user }) => {
                 </div>
             )}
             
-            {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModal} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} userPlan={userPlan}/> )}
+            {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModal} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
             {isImportModalOpen && (<ImportModal onClose={handleCloseModal} onImport={handleImport} />)}
-            {isProjectModalOpen && (<ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} onAddProject={handleAddProject} onDeleteProject={handleDeletePost} />)}
+            {isProjectModalOpen && ( <ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} /> )}
         </div>
     );
 };

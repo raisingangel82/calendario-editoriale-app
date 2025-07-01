@@ -1,19 +1,20 @@
 import React from 'react';
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
 import { ArrowLeft } from 'lucide-react';
-import type { Post } from '../types';
+import type { Post, Progetto } from '../types';
+import { ContenutoCard } from './ContenutoCard';
 
 interface FilteredListViewProps {
     posts: Post[];
+    progetti: Progetto[];
     filterCategory: string;
     onBack: () => void;
     onPostClick: (post: Post) => void;
+    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
 }
 
-export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, filterCategory, onBack, onPostClick }) => {
+export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, progetti, filterCategory, onBack, onPostClick, onStatusChange }) => {
     return (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg max-w-4xl mx-auto">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
                     Da Creare: <span className="text-red-600">{filterCategory}</span>
@@ -26,33 +27,33 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, filte
                     Torna al Calendario
                 </button>
             </div>
-            <ul className="space-y-3">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {posts.length > 0 ? (
-                    posts.map(post => (
-                        <li key={post.id}>
-                            <button 
-                                onClick={() => onPostClick(post)} 
-                                className="w-full text-left p-4 bg-gray-50 dark:bg-gray-800/50 rounded-md border border-gray-200 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/50 hover:border-red-300 dark:hover:border-red-700 transition-colors"
-                            >
-                                <div className="flex justify-between items-start">
-                                    <div className='min-w-0 pr-4'>
-                                        <p className="font-bold text-gray-800 dark:text-gray-200 truncate" title={post.libro}>{post.libro}</p>
-                                        <p className="text-sm text-gray-600 dark:text-gray-400 my-1 truncate" title={post.tipoContenuto}>{post.tipoContenuto}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-500">{post.descrizione}</p>
-                                    </div>
-                                    {post.data && (
-                                        <p className="text-xs font-semibold text-red-500 mt-1 flex-shrink-0">
-                                            {format(post.data.toDate(), 'dd MMM yy', { locale: it })}
-                                        </p>
-                                    )}
-                                </div>
-                            </button>
-                        </li>
-                    ))
+                    posts.map(post => {
+                        const progettoDelPost = progetti.find(p => p.id === post.projectId);
+                        const cardColor = progettoDelPost?.color;
+                        const nomeProgetto = progettoDelPost?.nome;
+
+                        return (
+                            <ContenutoCard 
+                                key={post.id}
+                                post={post}
+                                nomeProgetto={nomeProgetto}
+                                projectColor={cardColor}
+                                onCardClick={onPostClick}
+                                onStatusChange={onStatusChange}
+                                isDraggable={false}
+                                showDate={true} // <-- PROP PER MOSTRARE LA DATA
+                            />
+                        );
+                    })
                 ) : (
-                    <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nessun contenuto da creare per questa categoria. Ottimo lavoro!</p>
+                    <div className="lg:col-span-3">
+                        <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nessun contenuto da creare per questa categoria. Ottimo lavoro!</p>
+                    </div>
                 )}
-            </ul>
+            </div>
         </div>
     );
 };
