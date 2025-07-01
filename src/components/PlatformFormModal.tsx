@@ -20,7 +20,7 @@ export const PlatformFormModal: React.FC<PlatformFormModalProps> = ({ isOpen, on
       setName(platformToEdit.name);
       setIcon(platformToEdit.icon);
       setBaseUrl(platformToEdit.baseUrl);
-      setIsActive(platformToEdit.isActive);
+      setIsActive(platformToEdit.isActive ?? true);
     } else {
       // Reset form per nuova piattaforma
       setName('');
