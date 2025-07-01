@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import { PlatformFormModal } from './PlatformFormModal';
