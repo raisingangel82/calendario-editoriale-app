@@ -13,7 +13,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext'; // Importiamo
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Impostazioni } from './pages/Impostazioni';
 import type { ColorShade } from './data/colorPalette';
-
+// 
 
 function MainLayout() {
   const { user } = useAuth();
