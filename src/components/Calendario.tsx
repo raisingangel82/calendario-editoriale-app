@@ -1,21 +1,19 @@
-// L'intero codice che ti ho fornito nel messaggio precedente, marcato come "(Versione Finale e Corretta)" è quello giusto. 
-// Dato che è molto lungo, per evitare errori, lo ri-genero qui per intero.
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { DndContext, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, writeBatch, getDocs } from 'firebase/firestore';
-import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, getHours, setHours } from 'date-fns';
+import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, getHours, setHours, isSameWeek } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { ContenutoCard } from './ContenutoCard.tsx';
-import { ContenutoModal } from './ContenutoModal.tsx';
+import { ContenutoCard } from './ContenutoCard';
+import { ContenutoModal } from './ContenutoModal';
 import { Plus, Download, Upload, Settings } from 'lucide-react';
-import { Stats } from './Stats.tsx';
-import { useBreakpoint } from '../hooks/useBreakpoint.ts';
-import { FilteredListView } from './FilteredListView.tsx';
-import { ImportModal } from './ImportModal.tsx';
-import { ProjectManagerModal } from './ProjectManagerModal.tsx';
+import { Stats } from './Stats';
+import { useBreakpoint } from '../hooks/useBreakpoint';
+import { FilteredListView } from './FilteredListView';
+import { ImportModal } from './ImportModal';
+import { ProjectManagerModal } from './ProjectManagerModal';
 import type { Post, Progetto, Categoria } from '../types';
 
 const fasceOrarie = [
@@ -54,6 +52,9 @@ export const Calendario: React.FC = () => {
     const isDesktop = useBreakpoint();
     const dataInizio = new Date('2025-06-30');
     
+    // ▼▼▼ MODIFICA: Ref per tenere traccia se lo scroll iniziale è già avvenuto ▼▼▼
+    const initialScrollDone = useRef(false);
+
     const PERPETUAL_SCROLL_ENABLED = user?.plan === 'pro';
     const totalWeeksToShow = PERPETUAL_SCROLL_ENABLED ? 100 : 8;
 
@@ -79,6 +80,37 @@ export const Calendario: React.FC = () => {
         return () => { unsubPosts(); unsubProgetti(); };
     }, [user]);
     
+    // ▼▼▼ MODIFICA: Logica di scroll automatico perfezionata ▼▼▼
+    useEffect(() => {
+        // Esegui solo se i dati sono caricati, non è ancora stato fatto lo scroll e la vista è quella del calendario
+        if (posts.length > 0 && !initialScrollDone.current && viewMode === 'calendar') {
+            const statsHeader = document.getElementById('stats-header');
+            const headerHeight = statsHeader ? statsHeader.offsetHeight : 0;
+            
+            let targetElement: HTMLElement | null = null;
+    
+            if (isDesktop) {
+                // Su desktop, cerca la settimana corrente
+                targetElement = document.getElementById('current-week-desktop');
+            } else {
+                // Su mobile, cerca il giorno esatto
+                targetElement = document.getElementById('today-mobile');
+            }
+    
+            if (targetElement) {
+                const elementPosition = targetElement.getBoundingClientRect().top;
+                const offsetPosition = elementPosition + window.pageYOffset - headerHeight - 20; // 20px di margine extra
+      
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: 'smooth'
+                });
+            }
+            // Imposta il flag a true per non ripetere lo scroll
+            initialScrollDone.current = true;
+        }
+    }, [posts, viewMode, isDesktop]);
+
     useEffect(() => {
         if (viewMode !== 'calendar' || !PERPETUAL_SCROLL_ENABLED || visibleWeeksCount >= allWeeks.length) return;
         const observer = new IntersectionObserver(
@@ -153,46 +185,60 @@ export const Calendario: React.FC = () => {
     const weeksToDisplay = allWeeks.slice(0, visibleWeeksCount);
     
     const DesktopView = () => (
-        <div className="space-y-8">{weeksToDisplay.map((settimana, index) => (<div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}<span className="text-sm font-light text-gray-400 dark:text-gray-500 ml-3">({format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[4], 'dd MMM', { locale: it })})</span></h3><div className="border-l border-t border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden"><div className="grid grid-cols-5">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-800/50'; return ( <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 transition-colors ${headerClass}`}><h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee')}</h4><p className={`text-2xl font-light ${isToday ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>{format(giorno, 'dd')}</p></div> );})}</div><div className="grid grid-cols-5">{fasceOrarie.flatMap(fascia => settimana.map(giorno => { const dropZoneId = `${giorno.toISOString()}|${fascia.label}`; const contenutiDellaFascia = posts.filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno)) && getHours(p.data.toDate()) >= fascia.startHour && getHours(p.data.toDate()) < fascia.endHour); return ( <div key={dropZoneId} className="min-h-[10rem] w-full p-2 border-r border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/20"><DropZone id={dropZoneId}>{contenutiDellaFascia.map((post) => {
+        <div className="space-y-8">{weeksToDisplay.map((settimana, index) => {
+            const isCurrentWeek = isSameWeek(oggi, settimana[0], { weekStartsOn: 1 });
+            return (
+                // ▼▼▼ MODIFICA: Aggiunto id per lo scroll automatico ▼▼▼
+                <div key={index} id={isCurrentWeek ? 'current-week-desktop' : `week-${index}`}>
+                    <h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}<span className="text-sm font-light text-gray-400 dark:text-gray-500 ml-3">({format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[4], 'dd MMM', { locale: it })})</span></h3><div className="border-l border-t border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden"><div className="grid grid-cols-5">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-800/50'; return ( <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 transition-colors ${headerClass}`}><h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee')}</h4><p className={`text-2xl font-light ${isToday ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>{format(giorno, 'dd')}</p></div> );})}</div><div className="grid grid-cols-5">{fasceOrarie.flatMap(fascia => settimana.map(giorno => { const dropZoneId = `${giorno.toISOString()}|${fascia.label}`; const contenutiDellaFascia = posts.filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno)) && getHours(p.data.toDate()) >= fascia.startHour && getHours(p.data.toDate()) < fascia.endHour); return ( <div key={dropZoneId} className="min-h-[10rem] w-full p-2 border-r border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/20"><DropZone id={dropZoneId}>{contenutiDellaFascia.map((post) => {
                                                 const progettoDelPost = progetti.find(p => p.id === post.projectId);
                                                 const cardColor = progettoDelPost?.color || '#9ca3af'; 
                                                 return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={true} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} /> );
-                                            })}</DropZone></div> );}) )}</div></div></div>))}</div>
+                                            })}</DropZone></div> );}) )}</div></div>
+                </div>
+            )
+        })}</div>
     );
     const MobileView = () => (
-        <div className="space-y-6">{weeksToDisplay.map((settimana, index) => (<div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}</h3><div className="space-y-4">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100' : 'bg-gray-50 dark:bg-gray-800'; const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a, b) => a.data!.toDate().getTime() - b.data!.toDate().getTime()); return ( <div key={giorno.toISOString()} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"><h4 className={`font-bold text-sm p-3 border-b border-gray-200 dark:border-gray-700 capitalize transition-colors ${headerClass}`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4><div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">{contenutiDelGiorno.length > 0 ? ( contenutiDelGiorno.map((post) => {
+        <div className="space-y-6">{weeksToDisplay.map((settimana, index) => (<div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}</h3><div className="space-y-4">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100' : 'bg-gray-50 dark:bg-gray-800'; const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a, b) => a.data!.toDate().getTime() - b.data!.toDate().getTime()); return ( <div key={giorno.toISOString()} id={isToday ? 'today-mobile' : undefined} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"><h4 className={`font-bold text-sm p-3 border-b border-gray-200 dark:border-gray-700 capitalize transition-colors ${headerClass}`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4><div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">{contenutiDelGiorno.length > 0 ? ( contenutiDelGiorno.map((post) => {
                                             const progettoDelPost = progetti.find(p => p.id === post.projectId);
                                             const cardColor = progettoDelPost?.color || '#9ca3af';
-                                            return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={false} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} /> );
+                                            return (
+                                                // ▼▼▼ MODIFICA: Passata la prop isMobileView per arricchire la card ▼▼▼
+                                                <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={false} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} isMobileView={true} />
+                                            );
                                         }) ) : ( <div className="h-10"></div> )}</div></div> );})}</div></div>))}</div>
     );
     
     return (
         <div>
-            <div className="flex flex-col md:flex-row justify-between md:items-stretch gap-6 mb-10">
-                <div className="w-full md:w-3/4"><Stats posts={posts} progetti={progetti} onFilterClick={handleFilterClick} /></div>
-                <div className="w-full md:w-1/4 flex flex-col sm:flex-row md:flex-col gap-2">
-                    <button onClick={() => setIsProjectModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Settings size={18} /> Gestisci Progetti</button>
-                    <button onClick={handleExport} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Esporta i tuoi dati'}><Download size={18} /> Esporta</button>
-                    <button onClick={() => setIsImportModalOpen(true)} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Importa da un file'}><Upload size={18} /> Importa</button>
-                    <button onClick={() => setIsAddModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Plus size={18} /> Nuovo Post</button>
+            {/* ▼▼▼ MODIFICA: Aggiunto id all'header per lo scroll automatico ▼▼▼ */}
+            <div id="stats-header" className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 py-4 mb-6">
+                <div className="flex flex-col md:flex-row justify-between md:items-stretch gap-6">
+                    <div className="w-full md:w-3/4"><Stats posts={posts} progetti={progetti} onFilterClick={handleFilterClick} /></div>
+                    <div className="w-full md:w-1/4 flex flex-col sm:flex-row md:flex-col gap-2">
+                        <button onClick={() => setIsProjectModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Settings size={18} /> Gestisci Progetti</button>
+                        <button onClick={handleExport} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Esporta i tuoi dati'}><Download size={18} /> Esporta</button>
+                        <button onClick={() => setIsImportModalOpen(true)} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Importa da un file'}><Upload size={18} /> Importa</button>
+                        <button onClick={() => setIsAddModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Plus size={18} /> Nuovo Post</button>
+                    </div>
                 </div>
             </div>
             
             <DndContext onDragEnd={handleDragEnd} >
-    {viewMode === 'calendar' ? (
-        isDesktop ? <DesktopView /> : <MobileView />
-    ) : (
-        <FilteredListView
-            posts={postsDaCreareFiltrati}
-            progetti={progetti}
-            filterCategory={filterCategory!}
-            onBack={handleShowCalendar}
-            onPostClick={handleCardClick}
-            onStatusChange={handleStatusChange}
-        />
-    )}
-</DndContext>
+                {viewMode === 'calendar' ? (
+                    isDesktop ? <DesktopView /> : <MobileView />
+                ) : (
+                    <FilteredListView
+                        posts={postsDaCreareFiltrati}
+                        progetti={progetti}
+                        filterCategory={filterCategory!}
+                        onBack={handleShowCalendar}
+                        onPostClick={handleCardClick}
+                        onStatusChange={handleStatusChange}
+                    />
+                )}
+            </DndContext>
 
             {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (
                 <div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400">
