@@ -14,6 +14,7 @@ import { FilteredListView } from './FilteredListView';
 import { ImportModal } from './ImportModal';
 import { ProjectManagerModal } from './ProjectManagerModal';
 import type { Post, Progetto, Categoria } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, children }) => {
     const { setNodeRef, isOver } = useDroppable({ id });
@@ -22,14 +23,17 @@ const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, ch
 }
 
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
-    const tipoLower = tipoContenuto?.toLowerCase() || '';
+    const tipoLower = (tipoContenuto || "").toLowerCase();
+    if (tipoLower.includes('testo')) return 'Testo';
     if (['reel', 'video', 'booktrailer', 'vlog', 'montaggio', 'documentario', 'podcast'].some(term => tipoLower.includes(term))) { return 'Video'; }
-    if (['immagine', 'post statico', 'carousel', 'immagine/carosello'].some(term => tipoLower.includes(term))) { return 'Immagine'; }
+    if (['immagine', 'post statico', 'carousel', 'carosello'].some(term => tipoLower.includes(term))) { return 'Immagine'; }
     return 'Testo';
 };
 
 export const Calendario: React.FC = () => {
     const { user, loading: userLoading } = useAuth();
+    // ▼▼▼ MODIFICA: Recuperiamo la funzione per il colore del tema ▼▼▼
+    const { getActiveColor } = useTheme(); 
     const oggi = startOfDay(new Date());
     const [posts, setPosts] = useState<Post[]>([]);
     const [progetti, setProgetti] = useState<Progetto[]>([]);
@@ -184,7 +188,7 @@ export const Calendario: React.FC = () => {
                 <div key={index} id={isCurrentWeek ? 'current-week-desktop' : `week-${index}`}>
                     <h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}<span className="text-sm font-light text-gray-400 dark:text-gray-500 ml-3">({format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[4], 'dd MMM', { locale: it })})</span></h3>
                     <div className="border-l border-t border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                        <div className="grid grid-cols-5">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800/50'; return ( <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 transition-colors ${headerClass}`}><h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee')}</h4><p className={`text-2xl font-light ${isToday ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>{format(giorno, 'dd')}</p></div> );})}</div>
+                        <div className="grid grid-cols-5">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? `${getActiveColor('bg')} text-white font-bold` : 'bg-gray-100 dark:bg-gray-800/50'; return ( <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 transition-colors ${headerClass}`}><h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-white' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee')}</h4><p className={`text-2xl font-light ${isToday ? 'text-white' : 'text-gray-400 dark:text-gray-500'}`}>{format(giorno, 'dd')}</p></div> );})}</div>
                         <div className="grid grid-cols-5">{settimana.map(giorno => { const dropZoneId = giorno.toISOString(); const contenutiDelGiorno = posts .filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno))) .sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0)); return ( <div key={dropZoneId} className="w-full border-r border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/20"><DropZone id={dropZoneId}>{contenutiDelGiorno.map((post) => { const progettoDelPost = progetti.find(p => p.id === post.projectId); const cardColor = progettoDelPost?.color || '#9ca3af'; return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={true} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} /> ); })}</DropZone></div> ); })}</div>
                     </div>
                 </div>
@@ -193,13 +197,12 @@ export const Calendario: React.FC = () => {
     );
 
     const MobileView = () => (
-        <div className="space-y-6">{weeksToDisplay.map((settimana, index) => (<div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}</h3><div className="space-y-4">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100' : 'bg-gray-100 dark:bg-gray-800'; const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a, b) => a.data!.toDate().getTime() - b.data!.toDate().getTime()); return ( <div key={giorno.toISOString()} id={isToday ? 'today-mobile' : undefined} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"><h4 className={`font-bold text-sm p-3 border-b border-gray-200 dark:border-gray-700 capitalize transition-colors ${headerClass}`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4><div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">{contenutiDelGiorno.length > 0 ? ( contenutiDelGiorno.map((post) => { const progettoDelPost = progetti.find(p => p.id === post.projectId); const cardColor = progettoDelPost?.color || '#9ca3af'; return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={false} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} isMobileView={true} /> ); }) ) : ( <div className="h-10"></div> )}</div></div> );})}</div></div>))}</div>
+        <div className="space-y-6">{weeksToDisplay.map((settimana, index) => (<div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}</h3><div className="space-y-4">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? `${getActiveColor('bg')} text-white` : 'bg-gray-100 dark:bg-gray-800'; const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a, b) => a.data!.toDate().getTime() - b.data!.toDate().getTime()); return ( <div key={giorno.toISOString()} id={isToday ? 'today-mobile' : undefined} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"><h4 className={`font-bold text-sm p-3 border-b border-gray-200 dark:border-gray-700 capitalize transition-colors ${headerClass}`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4><div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">{contenutiDelGiorno.length > 0 ? ( contenutiDelGiorno.map((post) => { const progettoDelPost = progetti.find(p => p.id === post.projectId); const cardColor = progettoDelPost?.color || '#9ca3af'; return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={false} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} isMobileView={true} /> ); }) ) : ( <div className="h-10"></div> )}</div></div> );})}</div></div>))}</div>
     );
     
     return (
         <div>
-            <div id="stats-header" className="sticky top-0 z-10 bg-gray-100 dark:bg-gray-900 py-4 mb-6">
-                {/* ▼▼▼ MODIFICA: Il layout ora è gestito da una singola colonna ▼▼▼ */}
+            <div id="stats-header" className="sticky top-[81px] z-20 bg-gray-100 dark:bg-gray-900 py-4 mb-6">
                 <div>
                     <Stats 
                         posts={posts} 

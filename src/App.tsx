@@ -32,7 +32,8 @@ function MainLayout() {
   
   return (
     <>
-      <header className="py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8 bg-slate-50 dark:bg-gray-900">
+      {/* ▼▼▼ MODIFICA: Aggiunte le classi per l'header sticky ▼▼▼ */}
+      <header className="sticky top-0 z-30 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8 bg-gray-100 dark:bg-gray-900">
         <div className="w-10"></div>
         <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">
           Calendario Editoriale
@@ -42,7 +43,6 @@ function MainLayout() {
           
           <div className="relative" ref={menuRef}>
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`block focus:outline-none rounded-full focus:ring-2 ${getActiveColor('ring')} focus:ring-offset-2 dark:focus:ring-offset-gray-900`}>
-              {/* ▼▼▼ MODIFICA: Passiamo la classe 'bg' (background) all'icona ▼▼▼ */}
               <AccountIcon className={getActiveColor('bg')} />
             </button>
 
@@ -88,7 +88,7 @@ function MainLayout() {
 function AppContent() {
   const { user, loading } = useAuth();
   if (loading) {
-    return <div className="bg-slate-50 dark:bg-gray-900 min-h-screen flex items-center justify-center"><p>Caricamento...</p></div>;
+    return <div className="bg-gray-100 dark:bg-gray-900 min-h-screen flex items-center justify-center"><p>Caricamento...</p></div>;
   }
   return (
     <div className="text-gray-800 dark:text-gray-200 min-h-screen font-sans">

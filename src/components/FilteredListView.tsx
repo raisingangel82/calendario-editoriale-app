@@ -14,7 +14,8 @@ interface FilteredListViewProps {
 
 export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, progetti, filterCategory, onBack, onPostClick, onStatusChange }) => {
     return (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg max-w-7xl mx-auto">
+        // ▼▼▼ MODIFICA: Cambiato max-w-7xl in max-w-screen-2xl per allineamento ▼▼▼
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg max-w-screen-2xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
                     Da Creare: <span className="text-red-600">{filterCategory}</span>
@@ -28,28 +29,25 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                 </button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {posts.length > 0 ? (
                     posts.map(post => {
                         const progettoDelPost = progetti.find(p => p.id === post.projectId);
-                        const cardColor = progettoDelPost?.color;
-                        const nomeProgetto = progettoDelPost?.nome;
-
                         return (
                             <ContenutoCard 
                                 key={post.id}
                                 post={post}
-                                nomeProgetto={nomeProgetto}
-                                projectColor={cardColor}
+                                nomeProgetto={progettoDelPost?.nome}
+                                projectColor={progettoDelPost?.color}
                                 onCardClick={onPostClick}
                                 onStatusChange={onStatusChange}
                                 isDraggable={false}
-                                showDate={true} // <-- PROP PER MOSTRARE LA DATA
+                                showDate={true}
                             />
                         );
                     })
                 ) : (
-                    <div className="lg:col-span-3">
+                    <div className="lg:col-span-3 xl:col-span-4">
                         <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nessun contenuto da creare per questa categoria. Ottimo lavoro!</p>
                     </div>
                 )}
