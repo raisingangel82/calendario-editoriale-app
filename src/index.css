@@ -6,10 +6,24 @@
   body {
     @apply bg-gray-100 dark:bg-gray-900;
   }
+
+  /* Stili per la scrollbar principale del browser */
+  html::-webkit-scrollbar {
+    width: 12px;
+  }
+  html::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-gray-900;
+  }
+  html::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-700 rounded-lg border-2 border-solid border-gray-100 dark:border-gray-900;
+  }
+  html::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-600;
+  }
 }
 
-/* ▼▼▼ MODIFICA: Aggiungi questo blocco di codice per la scrollbar personalizzata ▼▼▼ */
 @layer utilities {
+  /* Stili per la scrollbar personalizzata dei componenti */
   .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -25,18 +39,5 @@
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background-color: rgba(156, 163, 175, 0.7);
-  /* ▼▼▼ MODIFICA: Aggiungi questo blocco per la scrollbar principale ▼▼▼ */
-@layer base {
-  html::-webkit-scrollbar {
-    width: 12px;
-  }
-  html::-webkit-scrollbar-track {
-    @apply bg-gray-100 dark:bg-gray-900;
-  }
-  html::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-gray-700 rounded-lg border-2 border-solid border-gray-100 dark:border-gray-900;
-  }
-  html::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400 dark:bg-gray-600;
   }
 }
