@@ -32,7 +32,6 @@ function MainLayout() {
   
   return (
     <>
-      {/* ▼▼▼ MODIFICA: Aggiunte le classi per l'header sticky ▼▼▼ */}
       <header className="sticky top-0 z-30 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8 bg-gray-100 dark:bg-gray-900">
         <div className="w-10"></div>
         <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">
@@ -73,7 +72,8 @@ function MainLayout() {
           </div>
         </div>
       </header>
-      <main className="p-4 md:p-8">
+      {/* ▼▼▼ MODIFICA: Rimosso il padding superiore (pt) per eliminare lo spazio ▼▼▼ */}
+      <main className="px-4 md:px-8 pb-4 md:pb-8">
         <div className="max-w-screen-2xl mx-auto">
           <Routes>
             <Route path="/" element={<Calendario />} />
