@@ -1,86 +1,194 @@
-import React from 'react';
-import { useDraggable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
-import type { Post } from '../types';
-import { PlatformIcon } from './PlatformIcon';
-import { GripVertical, Clock, CheckCircle } from 'lucide-react';
-import { useTheme } from '../contexts/ThemeContext';
-import { getColor } from '../data/colorPalette';
+import React, { useState, useEffect } from 'react';
+import { format as formatDateFns } from 'date-fns';
+import { X, Trash2, Copy, UploadCloud, Download } from 'lucide-react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useAuth } from '../context/AuthContext';
+import { freePlatforms, allDefaultPlatforms } from '../data/defaultPlatforms';
+import type { PlatformData } from '../data/defaultPlatforms';
+import type { Post, Progetto } from '../types';
 
-interface ContenutoCardProps {
-    post: Post;
-    nomeProgetto?: string;
-    projectColor?: string;
-    showDate?: boolean;
-    // ▼▼▼ MODIFICA: Aggiunta la prop per distinguere la vista mobile ▼▼▼
-    isMobileView?: boolean; 
-    onCardClick: (post: Post) => void;
-    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
-    isDraggable: boolean;
+interface ContenutoModalProps {
+  post?: Post;
+  progetti: Progetto[];
+  onClose: () => void;
+  onSave: (dataToSave: any) => void;
+  onDelete: (postId: string) => void;
+  onDuplicate: (post: Post) => void;
 }
 
-export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto, projectColor, showDate, isMobileView, onCardClick, onStatusChange, isDraggable }) => {
-    const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: post.id, disabled: !isDraggable });
-    
-    const { colorShade } = useTheme();
-    const style = { transform: CSS.Translate.toString(transform) };
-    const finalColor = getColor(projectColor || 'stone', colorShade); 
-    const borderStyle = { borderLeft: `5px solid ${finalColor.hex}` };
+// ✅ NOTA: La parola "export" qui è fondamentale.
+export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, onClose, onSave, onDelete, onDuplicate }) => {
+  const { user } = useAuth();
+  const [customPlatforms, setCustomPlatforms] = useState<PlatformData[]>([]);
 
-    const handleStatusClick = (e: React.MouseEvent, field: 'statoProdotto' | 'statoPubblicato', currentValue: boolean) => {
-        e.stopPropagation();
-        onStatusChange(post.id, field, !currentValue);
+  useEffect(() => {
+    if (user?.plan === 'pro') {
+      const fetchCustomPlatforms = async () => {
+        if (!user) return;
+        const q = query(collection(db, "platforms"), where("userId", "==", user.uid));
+        const querySnapshot = await getDocs(q);
+        const fetchedPlatforms = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PlatformData));
+        setCustomPlatforms(fetchedPlatforms);
+      };
+      fetchCustomPlatforms();
+    }
+  }, [user]);
+
+  const availablePlatforms = user?.plan === 'pro'
+    ? [...allDefaultPlatforms, ...customPlatforms]
+    : freePlatforms;
+
+  const isEditMode = !!post;
+
+  const [projectId, setProjectId] = useState(post?.projectId || (progetti.length > 0 ? progetti[0].id : ''));
+  const [piattaforma, setPiattaforma] = useState(post?.piattaforma || (availablePlatforms.length > 0 ? availablePlatforms[0].name : ''));
+  const [tipoContenuto, setTipoContenuto] = useState(post?.tipoContenuto || '');
+  const [descrizione, setDescrizione] = useState(post?.descrizione || '');
+  const [primoCommento, setPrimoCommento] = useState(post?.primoCommento || '');
+  const [urlMedia, setUrlMedia] = useState(post?.urlMedia || '');
+  const [data, setData] = useState(post?.data ? formatDateFns(post.data.toDate(), "yyyy-MM-dd'T'HH:mm") : "");
+  const [isProdotto, setIsProdotto] = useState(post?.statoProdotto || false);
+  const [isPubblicato, setIsPubblicato] = useState(post?.statoPubblicato || false);
+
+  const handleProdottoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setIsProdotto(checked);
+    if (!checked) setIsPubblicato(false);
+  };
+
+  const handlePubblicatoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setIsPubblicato(checked);
+    if (checked) setIsProdotto(true);
+  };
+
+  const handleSaveChanges = () => {
+    if (!data && !isEditMode) {
+      alert("Per favore, inserisci una data per il nuovo post.");
+      return;
+    }
+    const dataToSave: any = {
+      projectId, piattaforma, tipoContenuto, descrizione, primoCommento, urlMedia,
+      data: new Date(data), statoProdotto: isProdotto, statoPubblicato: isPubblicato,
     };
+    onSave(dataToSave);
+  };
 
-    const prodottoClass = post.statoProdotto ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600';
-    const pubblicatoClass = post.statoPubblicato ? 'text-green-500' : 'text-gray-300 dark:text-gray-600';
+  const handleDelete = () => {
+    if (isEditMode && post) { if (window.confirm(`Sei sicuro di voler eliminare questo post?`)) onDelete(post.id); }
+  };
 
-    return (
-        <div 
-            ref={setNodeRef} 
-            style={{ ...style, ...borderStyle }}
-            className="flex w-full items-stretch bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all group"
-        >
-            <div 
-                {...attributes} 
-                {...listeners} 
-                className={`flex flex-col items-center justify-between p-2 space-y-1 bg-gray-100 dark:bg-gray-900/40 rounded-l-none ${isDraggable ? 'cursor-grab' : ''} group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors`}
-            >
-                <div onClick={() => onCardClick(post)} className="cursor-pointer pt-1">
-                    <PlatformIcon platform={post.piattaforma} className="w-6 h-6 text-gray-700 dark:text-gray-300"/>
-                </div>
-                <GripVertical size={16} className="text-gray-400 dark:text-gray-500" />
-                <div className="flex flex-col gap-1.5 pb-1">
-                    <button onClick={(e) => handleStatusClick(e, 'statoProdotto', post.statoProdotto)} title="Prodotto" className={`transition-colors hover:text-amber-500 ${prodottoClass}`}>
-                        <Clock size={14} />
-                    </button>
-                    <button onClick={(e) => handleStatusClick(e, 'statoPubblicato', post.statoPubblicato)} title="Pubblicato" className={`transition-colors hover:text-green-500 ${pubblicatoClass}`}>
-                        <CheckCircle size={14} />
-                    </button>
-                </div>
-            </div>
-            <div className="flex-grow p-3 flex flex-col justify-between min-w-0" onClick={() => onCardClick(post)}>
-                <div>
-                    <p className="font-bold text-sm text-gray-800 dark:text-gray-100 break-words">{nomeProgetto || 'Progetto non assegnato'}</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{post.tipoContenuto}</p>
-                    
-                    {/* ▼▼▼ MODIFICA: Aggiunta la descrizione per la vista mobile ▼▼▼ */}
-                    {isMobileView && post.descrizione && (
-                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 break-words">
-                           {post.descrizione.substring(0, 75)}{post.descrizione.length > 75 ? '...' : ''}
-                        </p>
-                    )}
-                </div>
-                {showDate && post.data && (
-                    <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-700">
-                        <p className="text-xs font-semibold text-red-500">
-                           Scadenza: {format(post.data.toDate(), 'dd MMM yy', { locale: it })}
-                        </p>
-                    </div>
-                )}
-            </div>
+  const handleDuplicate = () => {
+    if (isEditMode && post) {
+      if (user?.plan !== 'pro') {
+        alert("La duplicazione dei post è una funzionalità Pro.");
+        return;
+      }
+      onDuplicate(post);
+    }
+  };
+
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
+  const inputBaseStyle = "w-full bg-transparent border-0 border-b-2 border-gray-200 dark:border-gray-600 focus:ring-0 focus:border-red-600 dark:focus:border-red-500 transition-colors py-2 text-gray-800 dark:text-gray-200";
+  const selectStyle = `${inputBaseStyle} dark:bg-gray-800`;
+  const labelStyle = "block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider";
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white p-6 md:p-8 rounded-lg w-full max-w-2xl shadow-2xl border border-gray-200 dark:bg-gray-800" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-light tracking-widest text-gray-600 dark:text-gray-300 uppercase">{isEditMode ? 'Dettagli Post' : 'Nuovo Post'}</h2>
+          <button onClick={onClose} className="p-2 rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"><X size={20} /></button>
         </div>
-    );
+        
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="project-select" className={labelStyle}>Libro / Progetto</label>
+              <select id="project-select" value={projectId} onChange={e => setProjectId(e.target.value)} className={selectStyle}>
+                {progetti.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="piattaforma" className={labelStyle}>Piattaforma</label>
+               <select id="piattaforma" value={piattaforma} onChange={e => setPiattaforma(e.target.value)} className={selectStyle}>
+                {availablePlatforms.map(platform => (
+                  <option key={platform.id} value={platform.name}>
+                    {platform.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div><label htmlFor="data" className={labelStyle}>Data Pubblicazione</label><input id="data" type="datetime-local" value={data} onChange={e => setData(e.target.value)} className={inputBaseStyle} /></div>
+          <div>
+            <label htmlFor="tipoContenuto" className={labelStyle}>Tipo Contenuto</label>
+            <select id="tipoContenuto" value={tipoContenuto} onChange={e => setTipoContenuto(e.target.value)} className={selectStyle}>
+                <option value="">Seleziona un tipo...</option>
+                <optgroup label="Testo"><option value="Testo breve con Immagine">Testo breve con Immagine</option></optgroup>
+                <optgroup label="Immagine"><option value="Immagine/Carosello">Immagine/Carosello</option></optgroup>
+                <optgroup label="Video"><option value="Reel">Reel</option><option value="Booktrailer">Booktrailer</option><option value="Podcast">Podcast</option><option value="Vlog">Vlog</option></optgroup>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="descrizione" className={labelStyle}>Descrizione / Testo</label>
+            <textarea id="descrizione" value={descrizione} onChange={e => setDescrizione(e.target.value)} rows={3} className={`${inputBaseStyle} resize-none`}/>
+          </div>
+          <div>
+            <label htmlFor="primoCommento" className={labelStyle}>Primo Commento</label>
+            <textarea id="primoCommento" value={primoCommento} onChange={e => setPrimoCommento(e.target.value)} rows={2} className={`${inputBaseStyle} resize-none`} placeholder="Testo da inserire nel primo commento (es. per hashtag)..."/>
+          </div>
+          
+          <div>
+            <label htmlFor="urlMedia" className={labelStyle}>Pannello di Controllo Media</label>
+            <div className="flex items-center gap-2 mt-2">
+              <input id="urlMedia" type="text" value={urlMedia} onChange={e => setUrlMedia(e.target.value)} className={inputBaseStyle} placeholder="Incolla qui il link al tuo media..."/>
+              
+              <a href="https://drive.google.com" target="_blank" rel="noopener noreferrer" title="Carica su Google Drive" className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <UploadCloud size={18} className="text-gray-600 dark:text-gray-300" />
+              </a>
+
+              <a href={urlMedia && !urlMedia.startsWith('http') ? `https://${urlMedia}` : urlMedia} target="_blank" rel="noopener noreferrer" title="Scarica/Visualizza Media" className={`p-2 rounded-md transition-colors ${!urlMedia ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                <Download size={18} className="text-gray-600 dark:text-gray-300" />
+              </a>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-8 pt-4">
+              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isProdotto} onChange={handleProdottoChange} className="h-4 w-4 rounded-sm border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-900 text-red-600 focus:ring-red-500" /><span className="font-medium text-gray-700 dark:text-gray-300">Prodotto</span></label>
+              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isPubblicato} onChange={handlePubblicatoChange} className="h-4 w-4 rounded-sm border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-900 text-red-600 focus:ring-red-500" /><span className="font-medium text-gray-700 dark:text-gray-300">Pubblicato</span></label>
+          </div>
+        </div>
+        
+        <div className="mt-8 pt-5 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            {isEditMode && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button onClick={handleDelete} className="w-full justify-center font-semibold text-white bg-red-600 border border-red-600 py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2">
+                  <Trash2 size={16} /> Elimina
+                </button>
+                <button onClick={handleDuplicate} disabled={user?.plan !== 'pro'} className="w-full justify-center font-semibold text-gray-700 bg-gray-100 border border-gray-300 py-2 px-4 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2" title={user?.plan !== 'pro' ? 'Funzionalità Pro' : 'Duplica Post'}>
+                  <Copy size={16} /> Duplica
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">
+            <button type="button" onClick={onClose} className="w-full justify-center font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+              Annulla
+            </button>
+            <button onClick={handleSaveChanges} className="w-full justify-center font-semibold text-white bg-gray-800 dark:bg-gray-50 dark:text-gray-900 py-2 px-4 rounded-lg hover:bg-black dark:hover:bg-white transition-colors">
+              {isEditMode ? 'Salva' : 'Crea Post'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
