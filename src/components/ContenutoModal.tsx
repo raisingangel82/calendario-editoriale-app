@@ -93,6 +93,11 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
           <h2 className="text-xl font-light tracking-widest text-gray-600 dark:text-gray-300 uppercase">{isEditMode ? 'Dettagli Post' : 'Nuovo Post'}</h2>
           <button onClick={onClose} className="p-2 rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"><X size={20} /></button>
         </div>
+
+                {/* ▼▼▼ MODIFICA: Aggiunta la classe "custom-scrollbar" ▼▼▼ */}
+        <div className="overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
+          {/* ... qui dentro rimane tutto il form ... */}
+        </div>
         <div className="overflow-y-auto p-4 sm:p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label htmlFor="project-select" className={labelStyle}>Libro / Progetto</label><select id="project-select" value={projectId} onChange={e => setProjectId(e.target.value)} className={selectStyle}>{progetti.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div><div><label htmlFor="piattaforma" className={labelStyle}>Piattaforma</label><select id="piattaforma" value={piattaforma} onChange={e => setPiattaforma(e.target.value)} className={selectStyle}>{availablePlatforms.map(platform => (<option key={platform.id} value={platform.name}>{platform.name}</option>))}</select></div></div>
           <div><label htmlFor="data" className={labelStyle}>Data Pubblicazione</label><input id="data" type="datetime-local" value={data} onChange={e => setData(e.target.value)} className={inputBaseStyle} /></div>

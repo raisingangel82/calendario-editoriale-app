@@ -81,7 +81,9 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ proget
           <h2 className="text-xl font-light tracking-widest text-gray-600 dark:text-gray-300 uppercase">Gestisci Progetti</h2>
           <button onClick={onClose} className="p-2 rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"><X size={20} /></button>
         </div>
-
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-3 custom-scrollbar">
+            {/* ... qui dentro rimangono il form e la lista dei progetti ... */}
+        </div>
         <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-3">
             {/* Sezione per Aggiungere o Modificare un Progetto */}
             <div>
