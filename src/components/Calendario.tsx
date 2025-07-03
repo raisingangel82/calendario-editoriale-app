@@ -49,11 +49,9 @@ export const Calendario: React.FC = () => {
     const dataInizio = new Date('2025-06-30');
     
     const initialScrollDone = useRef(false);
-    // ▼▼▼ MODIFICA: Nuovo stato per l'altezza dell'header principale ▼▼▼
     const [mainHeaderHeight, setMainHeaderHeight] = useState(0);
 
     useEffect(() => {
-        // Misura l'altezza dell'header una sola volta
         const header = document.querySelector('header');
         if (header) {
             setMainHeaderHeight(header.offsetHeight);
@@ -85,11 +83,11 @@ export const Calendario: React.FC = () => {
         return () => { unsubPosts(); unsubProgetti(); };
     }, [user]);
     
+    // ▼▼▼ MODIFICA: Aggiunta la condizione viewMode === 'calendar' ▼▼▼
     useEffect(() => {
         if (posts.length > 0 && !initialScrollDone.current && viewMode === 'calendar' && mainHeaderHeight > 0) {
             const statsHeader = document.getElementById('stats-header');
             const statsHeaderHeight = statsHeader ? statsHeader.offsetHeight : 0;
-            // ▼▼▼ MODIFICA: L'altezza totale ora è la somma delle altezze reali ▼▼▼
             const totalHeaderHeight = mainHeaderHeight + statsHeaderHeight;
 
             let targetElement: HTMLElement | null = null;
@@ -124,7 +122,7 @@ export const Calendario: React.FC = () => {
         return () => { if (currentRef) { observer.unobserve(currentRef); } };
     }, [viewMode, allWeeks.length, visibleWeeksCount, PERPETUAL_SCROLL_ENABLED]);
     
-        const handleAddPost = async (dataToSave: Omit<Post, 'id' | 'userId'>) => { if (user?.plan === 'free' && progetti.length >= 1) { const progettoEsistente = progetti.find(p => p.id === dataToSave.projectId); if (!progettoEsistente) { alert("Il piano gratuito consente di gestire un solo progetto. Passa a Pro per aggiungerne altri."); return; } } if (!user) return; const docData = { ...dataToSave, userId: user.uid, data: Timestamp.fromDate(dataToSave.data as Date) }; await addDoc(collection(db, 'contenuti'), docData); setIsAddModalOpen(false); };
+    const handleAddPost = async (dataToSave: Omit<Post, 'id' | 'userId'>) => { if (user?.plan === 'free' && progetti.length >= 1) { const progettoEsistente = progetti.find(p => p.id === dataToSave.projectId); if (!progettoEsistente) { alert("Il piano gratuito consente di gestire un solo progetto. Passa a Pro per aggiungerne altri."); return; } } if (!user) return; const docData = { ...dataToSave, userId: user.uid, data: Timestamp.fromDate(dataToSave.data as Date) }; await addDoc(collection(db, 'contenuti'), docData); setIsAddModalOpen(false); };
     const handleSavePost = async (updatedFields: any) => { if (!selectedPost) return; const docRef = doc(db, 'contenuti', selectedPost.id); const dataToUpdate = { ...updatedFields, data: Timestamp.fromDate(updatedFields.data as Date) }; await updateDoc(docRef, dataToUpdate); setSelectedPost(null); };
     const handleDeletePost = async (postId: string) => { const docRef = doc(db, 'contenuti', postId); await deleteDoc(docRef); setSelectedPost(null); };
     const handleDeleteProject = async (projectId: string) => { const docRef = doc(db, 'progetti', projectId); await deleteDoc(docRef); };
@@ -135,7 +133,7 @@ export const Calendario: React.FC = () => {
     const handleCardClick = (post: Post) => { setSelectedPost(post); };
     const handleCloseModal = () => { setSelectedPost(null); setIsAddModalOpen(false); setIsImportModalOpen(false); setIsProjectModalOpen(false); };
     const handleDragEnd = async (event: DragEndEvent) => { const { active, over } = event; if (!over) return; const postId = active.id as string; const dropZoneId = over.id as string; const nuovoGiorno = new Date(dropZoneId); const nuovaData = setHours(nuovoGiorno, 9); const docRef = doc(db, 'contenuti', postId); await updateDoc(docRef, { data: Timestamp.fromDate(nuovaData) }); };
-    const handleFilterClick = (categoria: Categoria) => { setFilterCategory(categoria); setViewMode('list'); };
+    const handleFilterClick = (categoria: Categoria) => { setViewMode('list'); };
     const handleShowCalendar = () => { setViewMode('calendar'); setFilterCategory(null); };
     const handleImport = async (importedPosts: any[], mode: 'add' | 'overwrite') => { if (user?.plan !== 'pro') { alert("L'importazione di file è una funzionalità Pro."); return; } if (!user) return; if (!window.confirm(`Stai per ${mode === 'overwrite' ? 'SOVRASCRIVERE TUTTI I POST ESISTENTI' : 'importare ' + importedPosts.length + ' nuovi post'}. Sei assolutamente sicuro?`)) return; try { if (mode === 'overwrite') { const deleteBatch = writeBatch(db); const q = query(collection(db, "contenuti"), where("userId", "==", user.uid)); const snapshot = await getDocs(q); snapshot.forEach(doc => deleteBatch.delete(doc.ref)); await deleteBatch.commit(); } const importBatch = writeBatch(db); let importedCount = 0; importedPosts.forEach(post => { if (post.projectId && post.piattaforma && post.data && post.tipoContenuto && post.descrizione) { const newPostRef = doc(collection(db, "contenuti")); importBatch.set(newPostRef, { ...post, userId: user.uid, data: Timestamp.fromDate(new Date(post.data)), statoProdotto: post.statoProdotto || false, statoPubblicato: post.statoPubblicato || false, urlMedia: post.urlMedia || '' }); importedCount++; } }); await importBatch.commit(); alert(`${importedCount} post importati con successo!`); setIsImportModalOpen(false); } catch (error) { console.error("Errore importazione:", error); alert(`Errore durante l'importazione.`); } };
     const handleAddProject = async (newProjectData: { nome: string; sintesi: string; immagineUrl: string; color: string; }) => { if (user?.plan === 'free' && progetti.length >= 1) { alert("Il piano gratuito consente di gestire un solo progetto. Passa a Pro per aggiungerne altri."); return; } if (!user) return; await addDoc(collection(db, 'progetti'), { ...newProjectData, userId: user.uid, }); };
@@ -152,7 +150,6 @@ export const Calendario: React.FC = () => {
     
     return (
         <div>
-            {/* ▼▼▼ MODIFICA: Aggiornato lo stile per il posizionamento dinamico e rimossa la spaziatura ▼▼▼ */}
             <div 
                 id="stats-header" 
                 className="sticky z-20 bg-gray-100 dark:bg-gray-900 pb-4 mb-6"

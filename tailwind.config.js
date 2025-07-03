@@ -1,26 +1,28 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  // Aggiungiamo la strategia 'class' per il dark mode
-  darkMode: 'class', 
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-    safelist: [
-    'border-l-gray-400',
-    'border-l-red-500',
-    'border-l-orange-500',
-    'border-l-amber-500',
-    'border-l-yellow-400',
-    'border-l-green-500',
-    'border-l-sky-500',
-    'border-l-blue-500',
-    'border-l-indigo-500',
-    'border-l-purple-500',
-    'border-l-pink-500',
+  // ▼▼▼ MODIFICA: Aggiunto il blocco "safelist" ▼▼▼
+  safelist: [
+    'bg-stone-400', 'bg-stone-700', 'bg-stone-800',
+    'bg-red-400', 'bg-red-700', 'bg-red-800',
+    'bg-orange-400', 'bg-orange-700', 'bg-orange-800',
+    'bg-green-400', 'bg-green-700', 'bg-green-800',
+    'bg-blue-400', 'bg-blue-700', 'bg-blue-800',
+    'bg-purple-400', 'bg-purple-700', 'bg-purple-800',
+    'bg-rose-400', 'bg-rose-700', 'bg-rose-800',
+    'text-red-400', 'text-red-700', 'text-red-800',
+    'ring-red-400', 'ring-red-700', 'ring-red-800',
   ],
+  darkMode: 'class',
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['"Inter"', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 }

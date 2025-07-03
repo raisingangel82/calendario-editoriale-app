@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react'; // Aggiunto useEffect
 import { ArrowLeft } from 'lucide-react';
 import type { Post, Progetto } from '../types';
 import { ContenutoCard } from './ContenutoCard';
@@ -13,8 +13,13 @@ interface FilteredListViewProps {
 }
 
 export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, progetti, filterCategory, onBack, onPostClick, onStatusChange }) => {
+    
+    // ▼▼▼ MODIFICA: Aggiunto questo blocco per resettare lo scroll ▼▼▼
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, []); // L'array vuoto assicura che venga eseguito solo quando il componente appare
+
     return (
-        // ▼▼▼ MODIFICA: Cambiato max-w-7xl in max-w-screen-2xl per allineamento ▼▼▼
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg max-w-screen-2xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
