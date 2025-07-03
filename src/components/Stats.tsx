@@ -28,7 +28,7 @@ const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
 
 export const Stats: React.FC<StatsProps> = ({ posts, progetti, onFilterClick, onNewPostClick, onImportClick, onExportClick, onProjectsClick }) => {
     const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
-    const { colorShade, getActiveColor } = useTheme();
+    const { colorShade, getActiveColor, theme } = useTheme();
     const isDesktop = useBreakpoint();
     const { user } = useAuth();
 
@@ -51,9 +51,9 @@ export const Stats: React.FC<StatsProps> = ({ posts, progetti, onFilterClick, on
 
     const ProjectFilter = () => ( <div><label htmlFor="project-filter" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Filtra Statistiche</label><select id="project-filter" value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)} className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"><option value="all">Tutti i Progetti</option>{progetti.map(proj => (<option key={proj.id} value={proj.id}>{proj.nome}</option>))}</select></div> );
     const ProduzioneProgetto = () => ( 
-        <div>
+        <div className="relative">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2"><BookOpen size={16} /> Produzione per Progetto</h3>
-            {/* ▼▼▼ MODIFICA: Aggiunto contenitore con altezza massima e scroll ▼▼▼ */}
+            {/* ▼▼▼ MODIFICA: Le classi per lo scroll ora sono applicate sempre ▼▼▼ */}
             <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
                 {progetti.map(proj => { 
                     const creati = stats.creatiProgetto[proj.id] || 0; 
@@ -63,23 +63,12 @@ export const Stats: React.FC<StatsProps> = ({ posts, progetti, onFilterClick, on
                     return ( <div key={proj.id} className="text-xs"><div className="flex justify-between items-center mb-1"><span className="font-bold text-gray-600 dark:text-gray-400 truncate pr-2" title={proj.nome}>{proj.nome}</span><span className="text-gray-500 dark:text-gray-500 flex-shrink-0">{creati}/{totali}</span></div><div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5"><div className={`${projectBarColor.bgClass} h-1.5 rounded-full`} style={{ width: `${percentuale}%` }}></div></div></div> ); 
                 })}
             </div>
+            <div className={`absolute bottom-0 left-0 right-0 h-8 pointer-events-none ${theme === 'light' ? 'bg-gradient-to-t from-white' : 'bg-gradient-to-t from-gray-800'}`}></div>
         </div> 
     );
     const ProduzioneCategoria = () => ( <div><h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2"><BarChart2 size={16} /> Produzione per Categoria</h3><div className="space-y-3">{(['Testo', 'Immagine', 'Video'] as const).map(cat => { const creati = stats.creatiPerCategoria[cat]; const totali = stats.totaliPerCategoria[cat]; const percentuale = totali > 0 ? (creati / totali) * 100 : 0; const categoryBarColor = getColor('red', colorShade); return ( <div key={cat} className="text-xs"><button onClick={() => onFilterClick(cat)} className="w-full text-left group" disabled={totali === 0}><div className="flex justify-between items-center mb-1"><span className="font-bold text-gray-600 dark:text-gray-400 group-hover:underline transition-colors">{cat}</span><span className="text-gray-500 dark:text-gray-500">{creati}/{totali}</span></div><div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5"><div className={`${categoryBarColor.bgClass} h-1.5 rounded-full`} style={{ width: `${percentuale}%` }}></div></div></button></div> ); })}</div></div> );
     const Riepilogo = () => ( <div><h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Riepilogo</h3><div className="space-y-2"><div className="flex justify-between items-center text-sm"><span className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><CheckCircle size={14} className="text-green-500" /> Creati</span><span className="font-bold text-lg text-gray-800 dark:text-gray-100">{stats.totaliCreati}</span></div><div className="flex justify-between items-center text-sm"><span className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><Clock size={14} className="text-amber-500"/> Da Creare</span><span className="font-bold text-lg text-gray-800 dark:text-gray-100">{totalDaCreare}</span></div></div></div> );
-    
-    const ActionButtons = ({ isDesktop = false }) => ( 
-        <div className={isDesktop ? "mt-4 pt-4 border-t border-gray-200 dark:border-gray-700" : "h-full flex flex-col justify-center items-center p-2"}>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Azioni Rapide</h3>
-            {/* ▼▼▼ MODIFICA: Aumentata la dimensione dei pulsanti e del font per mobile/landscape ▼▼▼ */}
-            <div className={`grid grid-cols-2 gap-3 w-full ${isDesktop ? 'text-sm' : 'text-base'}`}>
-                <button onClick={onNewPostClick} className="font-semibold py-3 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700"><Plus size={16} /> Nuovo</button>
-                <button onClick={onProjectsClick} className="font-semibold py-3 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700"><Settings size={16} /> Progetti</button>
-                <button onClick={onImportClick} disabled={user?.plan !== 'pro'} className="font-semibold py-3 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"><Upload size={16} /> Importa</button>
-                <button onClick={onExportClick} disabled={user?.plan !== 'pro'} className="font-semibold py-3 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"><Download size={16} /> Esporta</button>
-            </div>
-        </div> 
-    );
+    const ActionButtons = ({ isDesktop = false }) => ( <div className={isDesktop ? "mt-4 pt-4 border-t border-gray-200 dark:border-gray-700" : "h-full flex flex-col justify-center items-center p-2"}><h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Azioni Rapide</h3><div className={`grid grid-cols-2 gap-3 w-full ${isDesktop ? 'text-sm' : 'text-base'}`}><button onClick={onNewPostClick} className="font-semibold py-3 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700"><Plus size={16} /> Nuovo</button><button onClick={onProjectsClick} className="font-semibold py-3 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700"><Settings size={16} /> Progetti</button><button onClick={onImportClick} disabled={user?.plan !== 'pro'} className="font-semibold py-3 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"><Upload size={16} /> Importa</button><button onClick={onExportClick} disabled={user?.plan !== 'pro'} className="font-semibold py-3 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"><Download size={16} /> Esporta</button></div></div> );
 
     return (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg h-full flex flex-col">
