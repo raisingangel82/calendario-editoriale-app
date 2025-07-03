@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BarChart2, CheckCircle, Clock, BookOpen, Plus, Download, Upload, Settings } from 'lucide-react';
 import type { Post, Progetto, Categoria } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
-import { useAuth } from '../context/AuthContext'; // Import useAuth
+import { useAuth } from '../context/AuthContext';
 import { getColor } from '../data/colorPalette';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -58,14 +58,17 @@ export const Stats: React.FC<StatsProps> = ({ posts, progetti, onFilterClick, on
         <div><h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2"><BarChart2 size={16} /> Produzione per Categoria</h3><div className="space-y-3">{(['Testo', 'Immagine', 'Video'] as const).map(cat => { const creati = stats.creatiPerCategoria[cat]; const totali = stats.totaliPerCategoria[cat]; const percentuale = totali > 0 ? (creati / totali) * 100 : 0; const categoryBarColor = getColor('red', colorShade); return ( <div key={cat} className="text-xs"><button onClick={() => onFilterClick(cat)} className="w-full text-left group" disabled={totali === 0}><div className="flex justify-between items-center mb-1"><span className="font-bold text-gray-600 dark:text-gray-400 group-hover:underline transition-colors">{cat}</span><span className="text-gray-500 dark:text-gray-500">{creati}/{totali}</span></div><div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5"><div className={`${categoryBarColor.bgClass} h-1.5 rounded-full`} style={{ width: `${percentuale}%` }}></div></div></button></div> ); })}</div></div>
     );
     const Riepilogo = () => (
-        <div><h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Riepilogo Totale</h3><div className="space-y-2"><div className="flex justify-between items-center text-sm"><span className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><CheckCircle size={14} className="text-green-500" /> Creati</span><span className="font-bold text-lg text-gray-800 dark:text-gray-100">{stats.totaliCreati}</span></div><div className="flex justify-between items-center text-sm"><span className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><Clock size={14} className="text-amber-500"/> Da Creare</span><span className="font-bold text-lg text-gray-800 dark:text-gray-100">{totalDaCreare}</span></div></div></div>
+        <div><h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Riepilogo</h3><div className="space-y-2"><div className="flex justify-between items-center text-sm"><span className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><CheckCircle size={14} className="text-green-500" /> Creati</span><span className="font-bold text-lg text-gray-800 dark:text-gray-100">{stats.totaliCreati}</span></div><div className="flex justify-between items-center text-sm"><span className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><Clock size={14} className="text-amber-500"/> Da Creare</span><span className="font-bold text-lg text-gray-800 dark:text-gray-100">{totalDaCreare}</span></div></div></div>
     );
     const ActionButtons = () => (
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-            <button onClick={onNewPostClick} className="flex-1 justify-center font-semibold py-2 px-2 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"><Plus size={14} /> Nuovo</button>
-            <button onClick={onProjectsClick} className="flex-1 justify-center font-semibold py-2 px-2 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"><Settings size={14} /> Progetti</button>
-            <button onClick={onImportClick} disabled={user?.plan !== 'pro'} className="flex-1 justify-center font-semibold py-2 px-2 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"><Upload size={14} /> Importa</button>
-            <button onClick={onExportClick} disabled={user?.plan !== 'pro'} className="flex-1 justify-center font-semibold py-2 px-2 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"><Download size={14} /> Esporta</button>
+        <div className="h-full flex flex-col justify-center items-center">
+             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Azioni Rapide</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm w-full max-w-xs">
+                <button onClick={onNewPostClick} className="font-semibold py-2 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"><Plus size={16} /> Nuovo</button>
+                <button onClick={onProjectsClick} className="font-semibold py-2 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"><Settings size={16} /> Progetti</button>
+                <button onClick={onImportClick} disabled={user?.plan !== 'pro'} className="font-semibold py-2 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"><Upload size={16} /> Importa</button>
+                <button onClick={onExportClick} disabled={user?.plan !== 'pro'} className="font-semibold py-2 px-2 rounded-lg flex items-center justify-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"><Download size={16} /> Esporta</button>
+            </div>
         </div>
     );
 
@@ -73,6 +76,7 @@ export const Stats: React.FC<StatsProps> = ({ posts, progetti, onFilterClick, on
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-lg h-full flex flex-col">
             <div className="flex-grow">
             {isDesktop ? (
+                // LAYOUT DESKTOP
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-6 gap-y-4">
                     <div className="lg:col-span-1"><ProduzioneProgetto /></div>
                     <div className="lg:col-span-2 lg:border-l lg:pl-6 border-gray-200 dark:border-gray-700 space-y-4">
@@ -80,16 +84,34 @@ export const Stats: React.FC<StatsProps> = ({ posts, progetti, onFilterClick, on
                     </div>
                 </div>
             ) : (
+                // LAYOUT MOBILE CON SWIPER A 3 PAGINE
                 <>
                     <style>{`.stats-swiper .swiper-pagination-bullet-active { background-color: ${getActiveColor('text')}; }`}</style>
-                    <Swiper modules={[Pagination]} pagination={{ clickable: true }} className="w-full stats-swiper">
-                        <SwiperSlide><div className="p-1 pb-8 space-y-6"><ProduzioneProgetto /><Riepilogo /></div></SwiperSlide>
-                        <SwiperSlide><div className="p-1 pb-8 space-y-4"><ProjectFilter /><ProduzioneCategoria /></div></SwiperSlide>
+                    <Swiper modules={[Pagination]} pagination={{ clickable: true }} className="w-full stats-swiper h-full">
+                        <SwiperSlide>
+                            {/* Pagina 1: Riepiloghi affiancati */}
+                            <div className="grid grid-cols-2 gap-4 p-1 pb-8 h-full items-center">
+                                <ProduzioneProgetto />
+                                <Riepilogo />
+                            </div>
+                        </SwiperSlide>
+                        <SwiperSlide>
+                             {/* Pagina 2: Categorie */}
+                            <div className="p-1 pb-8 space-y-4 h-full">
+                                <ProjectFilter />
+                                <ProduzioneCategoria />
+                            </div>
+                        </SwiperSlide>
+                        <SwiperSlide>
+                             {/* Pagina 3: Azioni Rapide */}
+                            <div className="p-1 pb-8 h-full">
+                                <ActionButtons />
+                            </div>
+                        </SwiperSlide>
                     </Swiper>
                 </>
             )}
             </div>
-            {!isDesktop && <ActionButtons />}
         </div>
     );
 };

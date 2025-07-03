@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    /* ▼▼▼ MODIFICA: Applica un colore di sfondo più tenue in light mode ▼▼▼ */
-    @apply bg-slate-50 dark:bg-gray-900;
+    /* ▼▼▼ MODIFICA: Sfondo cambiato da slate-50 a gray-100 ▼▼▼ */
+    @apply bg-gray-100 dark:bg-gray-900;
   }
 }
