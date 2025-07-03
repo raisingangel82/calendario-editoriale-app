@@ -14,7 +14,6 @@ import type { ColorShade } from './data/colorPalette';
 
 function MainLayout() {
   const { user } = useAuth();
-  // ▼▼▼ MODIFICA: Recuperiamo la nuova funzione getActiveColor ▼▼▼
   const { colorShade, setColorShade, getActiveColor } = useTheme(); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -34,7 +33,7 @@ function MainLayout() {
   return (
     <>
       <header className="py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8 bg-slate-50 dark:bg-gray-900">
-        <div className="w-10"></div> {/* Spacer */}
+        <div className="w-10"></div>
         <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">
           Calendario Editoriale
         </h1>
@@ -43,8 +42,8 @@ function MainLayout() {
           
           <div className="relative" ref={menuRef}>
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`block focus:outline-none rounded-full focus:ring-2 ${getActiveColor('ring')} focus:ring-offset-2 dark:focus:ring-offset-gray-900`}>
-              {/* ▼▼▼ MODIFICA: Applichiamo il colore dinamico all'icona ▼▼▼ */}
-              <AccountIcon className={getActiveColor('text')} />
+              {/* ▼▼▼ MODIFICA: Passiamo la classe 'bg' (background) all'icona ▼▼▼ */}
+              <AccountIcon className={getActiveColor('bg')} />
             </button>
 
             {isMenuOpen && (
@@ -59,7 +58,6 @@ function MainLayout() {
                       <button 
                         key={shade} 
                         onClick={() => { setColorShade(shade); setIsMenuOpen(false); }} 
-                        // ▼▼▼ MODIFICA: Usiamo getActiveColor per lo sfondo del pulsante attivo ▼▼▼
                         className={`w-full text-xs py-1 px-2 rounded-md transition-colors ${colorShade === shade ? `${getActiveColor('bg')} text-white font-semibold` : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
                         {shade === '400' ? 'Chiara' : shade === '700' ? 'Media' : 'Intensa'}
                       </button>
@@ -89,13 +87,10 @@ function MainLayout() {
 
 function AppContent() {
   const { user, loading } = useAuth();
-
   if (loading) {
     return <div className="bg-slate-50 dark:bg-gray-900 min-h-screen flex items-center justify-center"><p>Caricamento...</p></div>;
   }
-
   return (
-    // ▼▼▼ MODIFICA: Rimosso bg-white per far emergere il colore di sfondo globale ▼▼▼
     <div className="text-gray-800 dark:text-gray-200 min-h-screen font-sans">
       <Routes>
         <Route path="/*" element={user ? <MainLayout /> : <Navigate to="/login" />} />

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+// ▼▼▼ MODIFICA: Aggiunte le icone mancanti ▼▼▼
+import { Plus, Download, Upload, Settings } from 'lucide-react';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { DndContext, useDroppable } from '@dnd-kit/core';

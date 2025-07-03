@@ -1,6 +1,11 @@
 import { useAuth } from '../context/AuthContext';
 
-export const AccountIcon: React.FC = () => {
+// ▼▼▼ MODIFICA: Aggiungiamo 'className' per ricevere il colore del tema ▼▼▼
+interface AccountIconProps {
+  className?: string;
+}
+
+export const AccountIcon: React.FC<AccountIconProps> = ({ className }) => {
     const { user } = useAuth();
 
     const getInitials = (email: string | null) => {
@@ -12,8 +17,11 @@ export const AccountIcon: React.FC = () => {
     }
 
     return (
-        <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm" title={user.email || 'Account'}>
-            {/* Logica aggiornata per mostrare l'immagine o le iniziali */}
+        // ▼▼▼ MODIFICA: Rimosso 'bg-red-500' e aggiunto {className} ▼▼▼
+        <div 
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${className}`} 
+          title={user.email || 'Account'}
+        >
             {user.photoURL ? (
                 <img src={user.photoURL} alt="User Avatar" className="rounded-full w-full h-full object-cover" />
             ) : (
