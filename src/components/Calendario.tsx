@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { DndContext, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, writeBatch, getDocs } from 'firebase/firestore';
-import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, getHours, setHours, isSameWeek } from 'date-fns';
+import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, setHours, isSameWeek } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { ContenutoCard } from './ContenutoCard';
 import { ContenutoModal } from './ContenutoModal';
