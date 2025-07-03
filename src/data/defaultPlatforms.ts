@@ -1,17 +1,16 @@
-import { Facebook, Instagram, Linkedin, Pinterest, Send, ShoppingCart, Youtube, Twitter, Sparkles, Twitch, MessageCircle } from 'lucide-react';
-import { SiTiktok, SiThreads } from 'react-icons/si';
+import { Facebook, Instagram, Linkedin, Send, ShoppingCart, Youtube, Twitter, Sparkles, Twitch, MessageCircle } from 'lucide-react';
+// ▼▼▼ MODIFICA: Rimosso Pinterest da lucide-react e aggiunto SiPinterest da react-icons ▼▼▼
+import { SiTiktok, SiThreads, SiPinterest } from 'react-icons/si';
 
-// ▼▼▼ MODIFICA: Aggiunto "publishUrl" alla definizione del tipo ▼▼▼
 export interface PlatformData {
   id: string;
   name: string;
   icon: React.ComponentType<any>;
   baseUrl: string;
-  publishUrl?: string; // URL per la pagina di creazione post
+  publishUrl?: string;
   isCustom?: boolean;
 }
 
-// ▼▼▼ MODIFICA: Aggiunti i "publishUrl" di default ▼▼▼
 const defaultPlatforms: Omit<PlatformData, 'id'>[] = [
   { name: 'Instagram', icon: Instagram, baseUrl: 'https://instagram.com', publishUrl: 'https://www.instagram.com/create/select/' },
   { name: 'Facebook', icon: Facebook, baseUrl: 'https://facebook.com', publishUrl: 'https://www.facebook.com/business/latest/composer' },
@@ -19,7 +18,8 @@ const defaultPlatforms: Omit<PlatformData, 'id'>[] = [
   { name: 'YouTube', icon: Youtube, baseUrl: 'https://youtube.com', publishUrl: 'https://studio.youtube.com/' },
   { name: 'X (Twitter)', icon: Twitter, baseUrl: 'https://x.com', publishUrl: 'https://x.com/compose/post' },
   { name: 'LinkedIn', icon: Linkedin, baseUrl: 'https://linkedin.com', publishUrl: 'https://www.linkedin.com/feed/' },
-  { name: 'Pinterest', icon: Pinterest, baseUrl: 'https://pinterest.com', publishUrl: 'https://www.pinterest.com/pin-builder/' },
+  // ▼▼▼ MODIFICA: Usiamo la nuova icona SiPinterest ▼▼▼
+  { name: 'Pinterest', icon: SiPinterest, baseUrl: 'https://pinterest.com', publishUrl: 'https://www.pinterest.com/pin-builder/' },
   { name: 'Threads', icon: SiThreads, baseUrl: 'https://threads.net', publishUrl: 'https://www.threads.net/' },
   { name: 'Telegram', icon: Send, baseUrl: 'https://web.telegram.org', publishUrl: 'https://web.telegram.org/' },
   { name: 'Amazon', icon: ShoppingCart, baseUrl: 'https://kdp.amazon.com', publishUrl: 'https://kdp.amazon.com/it_IT/title-setup/paperback/new' },
