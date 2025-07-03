@@ -1,0 +1,28 @@
+# File: .github/workflows/notifications.yml
+name: Send Scheduled Notifications
+
+on:
+  schedule:
+    # ▼▼▼ MODIFICA: Esegue ogni 30 minuti ▼▼▼
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Permette di avviarlo manualmente da GitHub
+
+jobs:
+  send-notifications:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install firebase-admin
+
+      - name: Run notification script
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+        run: node scripts/send-notifications.js

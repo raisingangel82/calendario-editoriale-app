@@ -70,7 +70,7 @@ export const Impostazioni: React.FC = () => {
     
     // IMPORTANTE: Questa è la tua chiave pubblica VAPID dal progetto Firebase
     // Dovrai generarla e incollarla qui.
-    const VAPID_KEY = "INCOLLA_LA_TUA_VAPID_KEY_QUI";
+    const VAPID_KEY = "BCvTK43mY8OjbcH1aE-ampackLk0vsQIYgYTDXj2K0obzOGZbQL8a7GivgqDIShYbufcW1b-TwCIn-n53q531T0";
 
     if (VAPID_KEY === "INCOLLA_LA_TUA_VAPID_KEY_QUI") {
         alert("Errore di configurazione: la VAPID key per le notifiche non è stata impostata nel codice.");

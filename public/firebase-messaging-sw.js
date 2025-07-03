@@ -4,15 +4,15 @@
 importScripts('https://www.gstatic.com/firebasejs/9.2.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.2.0/firebase-messaging-compat.js');
 
-// NOTA: In questa sezione dovrai inserire le credenziali del tuo progetto Firebase
-// Ti guiderò io quando configureremo il backend. Per ora, puoi lasciarle come esempio.
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "LE_TUE_CREDENZIALI_QUI",
-  authDomain: "LE_TUE_CREDENZIALI_QUI",
-  projectId: "LE_TUE_CREDENZIALI_QUI",
-  storageBucket: "LE_TUE_CREDENZIALI_QUI",
-  messagingSenderId: "LE_TUE_CREDENZIALI_QUI",
-  appId: "LE_TUE_CREDENZIALI_QUI"
+  apiKey: "AIzaSyA3EiyPqxAJRo6A8xnva0iB3R2XGZnKPWI",
+  authDomain: "calendario-editoriale-so-bc85b.firebaseapp.com",
+  projectId: "calendario-editoriale-so-bc85b",
+  storageBucket: "calendario-editoriale-so-bc85b.firebasestorage.app",
+  messagingSenderId: "163208289900",
+  appId: "1:163208289900:web:ac529fa7abd47cb64b4249",
+  measurementId: "G-386XG3W2CE"
 };
 
 // Inizializziamo l'app di Firebase nel service worker
