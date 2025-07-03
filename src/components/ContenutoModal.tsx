@@ -52,6 +52,25 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
 
   const publishUrl = availablePlatforms.find(p => p.name === piattaforma)?.publishUrl;
 
+  // ▼▼▼ MODIFICA: Ripristinate le funzioni handler corrette per i checkbox ▼▼▼
+  const handleProdottoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setIsProdotto(checked);
+    // Se deselezioni "Prodotto", deseleziona anche "Pubblicato"
+    if (!checked) {
+      setIsPubblicato(false);
+    }
+  };
+
+  const handlePubblicatoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setIsPubblicato(checked);
+    // Se selezioni "Pubblicato", seleziona anche "Prodotto"
+    if (checked) {
+      setIsProdotto(true);
+    }
+  };
+
   const handleSaveChanges = () => {
     if (!data && !isEditMode) { alert("Per favore, inserisci una data per il nuovo post."); return; }
     const dataToSave: any = { projectId, piattaforma, tipoContenuto, descrizione, primoCommento, urlMedia, data: new Date(data), statoProdotto: isProdotto, statoPubblicato: isPubblicato, };
@@ -81,7 +100,18 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
           <div><label htmlFor="descrizione" className={labelStyle}>Descrizione / Testo</label><textarea id="descrizione" value={descrizione} onChange={e => setDescrizione(e.target.value)} rows={3} className={`${inputBaseStyle} resize-none`}/></div>
           <div><label htmlFor="primoCommento" className={labelStyle}>Primo Commento</label><textarea id="primoCommento" value={primoCommento} onChange={e => setPrimoCommento(e.target.value)} rows={2} className={`${inputBaseStyle} resize-none`} placeholder="Testo da inserire nel primo commento (es. per hashtag)..."/></div>
           <div><label htmlFor="urlMedia" className={labelStyle}>Pannello di Controllo Media</label><div className="flex items-center gap-2 mt-2"><input id="urlMedia" type="text" value={urlMedia} onChange={e => setUrlMedia(e.target.value)} className={inputBaseStyle} placeholder="Incolla qui il link al tuo media..."/><a href="https://drive.google.com" target="_blank" rel="noopener noreferrer" title="Carica su Google Drive" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"><UploadCloud size={18} className="text-gray-600 dark:text-gray-300" /></a><a href={urlMedia && !urlMedia.startsWith('http') ? `https://${urlMedia}` : urlMedia} target="_blank" rel="noopener noreferrer" title="Scarica/Visualizza Media" className={`p-2 rounded-md transition-colors ${!urlMedia ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}><Download size={18} className="text-gray-600 dark:text-gray-300" /></a></div></div>
-          <div className="flex items-center gap-8 pt-4"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isProdotto} onChange={e => setIsProdotto(!isProdotto)} className="h-4 w-4 rounded-sm border-gray-300 dark:border-gray-600 bg-transparent text-red-600 focus:ring-red-500" /><span className="font-medium text-gray-700 dark:text-gray-300">Prodotto</span></label><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={isPubblicato} onChange={e => setIsPubblicato(!isPubblicato)} className="h-4 w-4 rounded-sm border-gray-300 dark:border-gray-600 bg-transparent text-red-600 focus:ring-red-500" /><span className="font-medium text-gray-700 dark:text-gray-300">Pubblicato</span></label></div>
+          
+          {/* ▼▼▼ MODIFICA: Usiamo le funzioni handler corrette che non danno errore ▼▼▼ */}
+          <div className="flex items-center gap-8 pt-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={isProdotto} onChange={handleProdottoChange} className="h-4 w-4 rounded-sm border-gray-300 dark:border-gray-600 bg-transparent text-red-600 focus:ring-red-500" />
+                <span className="font-medium text-gray-700 dark:text-gray-300">Prodotto</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={isPubblicato} onChange={handlePubblicatoChange} className="h-4 w-4 rounded-sm border-gray-300 dark:border-gray-600 bg-transparent text-red-600 focus:ring-red-500" />
+                <span className="font-medium text-gray-700 dark:text-gray-300">Pubblicato</span>
+              </label>
+          </div>
         </div>
         <div className="flex-shrink-0 mt-auto p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>{isEditMode && (<div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><button onClick={handleDelete} className="w-full justify-center font-semibold text-white bg-red-600 border border-red-600 py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"><Trash2 size={16} /> Elimina</button><button onClick={handleDuplicate} disabled={user?.plan !== 'pro'} className="w-full justify-center font-semibold text-gray-700 bg-gray-200 border border-gray-300 py-2 px-4 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2" title={user?.plan !== 'pro' ? 'Funzionalità Pro' : 'Duplica Post'}><Copy size={16} /> Duplica</button></div>)}</div>
