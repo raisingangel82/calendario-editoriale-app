@@ -8,7 +8,6 @@ import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, setHours, 
 import { it } from 'date-fns/locale';
 import { ContenutoCard } from './ContenutoCard';
 import { ContenutoModal } from './ContenutoModal';
-import { Plus, Download, Upload, Settings } from 'lucide-react';
 import { Stats } from './Stats';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { FilteredListView } from './FilteredListView';
@@ -16,12 +15,9 @@ import { ImportModal } from './ImportModal';
 import { ProjectManagerModal } from './ProjectManagerModal';
 import type { Post, Progetto, Categoria } from '../types';
 
-// ▼▼▼ MODIFICA: Rimosso l'array fasceOrarie ▼▼▼
-
 const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, children }) => {
     const { setNodeRef, isOver } = useDroppable({ id });
     const bgColor = isOver ? 'bg-red-50 dark:bg-red-900/40' : '';
-    // Aggiunto min-h per garantire che la zona di drop sia sempre cliccabile
     return (<div ref={setNodeRef} className={`p-2 h-full w-full transition-colors rounded-lg ${bgColor} min-h-[10rem]`}><div className="space-y-2">{children}</div></div>);
 }
 
@@ -158,18 +154,13 @@ export const Calendario: React.FC = () => {
     const handleCardClick = (post: Post) => { setSelectedPost(post); };
     const handleCloseModal = () => { setSelectedPost(null); setIsAddModalOpen(false); setIsImportModalOpen(false); setIsProjectModalOpen(false); };
     
-    // ▼▼▼ MODIFICA: Aggiornata la logica di Drag & Drop ▼▼▼
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over) return;
         const postId = active.id as string;
         const dropZoneId = over.id as string;
-        
-        // La logica non si basa più sulle fasce orarie
         const nuovoGiorno = new Date(dropZoneId);
-        // Impostiamo un orario di default (es. 9:00) quando si sposta una card
         const nuovaData = setHours(nuovoGiorno, 9);
-        
         const docRef = doc(db, 'contenuti', postId);
         await updateDoc(docRef, { data: Timestamp.fromDate(nuovaData) });
     };
@@ -186,7 +177,6 @@ export const Calendario: React.FC = () => {
     const postsDaCreareFiltrati = posts.filter(p => !p.statoProdotto && filterCategory && getCategoriaGenerica(p.tipoContenuto) === filterCategory).sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0));
     const weeksToDisplay = allWeeks.slice(0, visibleWeeksCount);
     
-    // ▼▼▼ MODIFICA: Riscritto interamente il DesktopView ▼▼▼
     const DesktopView = () => (
         <div className="space-y-8">{weeksToDisplay.map((settimana, index) => {
             const isCurrentWeek = isSameWeek(oggi, settimana[0], { weekStartsOn: 1 });
@@ -194,42 +184,8 @@ export const Calendario: React.FC = () => {
                 <div key={index} id={isCurrentWeek ? 'current-week-desktop' : `week-${index}`}>
                     <h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}<span className="text-sm font-light text-gray-400 dark:text-gray-500 ml-3">({format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[4], 'dd MMM', { locale: it })})</span></h3>
                     <div className="border-l border-t border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                        {/* Header dei giorni */}
-                        <div className="grid grid-cols-5">
-                            {settimana.map(giorno => {
-                                const isToday = isEqual(startOfDay(giorno), oggi);
-                                const headerClass = isToday ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-800/50';
-                                return (
-                                    <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 transition-colors ${headerClass}`}>
-                                        <h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee')}</h4>
-                                        <p className={`text-2xl font-light ${isToday ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>{format(giorno, 'dd')}</p>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        {/* Corpo del calendario con celle uniche */}
-                        <div className="grid grid-cols-5">
-                            {settimana.map(giorno => {
-                                const dropZoneId = giorno.toISOString();
-                                const contenutiDelGiorno = posts
-                                    .filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno)))
-                                    .sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0));
-
-                                return (
-                                    <div key={dropZoneId} className="w-full border-r border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/20">
-                                        <DropZone id={dropZoneId}>
-                                            {contenutiDelGiorno.map((post) => {
-                                                const progettoDelPost = progetti.find(p => p.id === post.projectId);
-                                                const cardColor = progettoDelPost?.color || '#9ca3af'; 
-                                                return (
-                                                    <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={true} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} />
-                                                );
-                                            })}
-                                        </DropZone>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        <div className="grid grid-cols-5">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-50 dark:bg-gray-800/50'; return ( <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 transition-colors ${headerClass}`}><h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee')}</h4><p className={`text-2xl font-light ${isToday ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}`}>{format(giorno, 'dd')}</p></div> );})}</div>
+                        <div className="grid grid-cols-5">{settimana.map(giorno => { const dropZoneId = giorno.toISOString(); const contenutiDelGiorno = posts .filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno))) .sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0)); return ( <div key={dropZoneId} className="w-full border-r border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/20"><DropZone id={dropZoneId}>{contenutiDelGiorno.map((post) => { const progettoDelPost = progetti.find(p => p.id === post.projectId); const cardColor = progettoDelPost?.color || '#9ca3af'; return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={true} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} /> ); })}</DropZone></div> ); })}</div>
                     </div>
                 </div>
             )
@@ -242,38 +198,37 @@ export const Calendario: React.FC = () => {
     
     return (
         <div>
-            <div id="stats-header" className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 py-4 mb-6">
+            <div id="stats-header" className="sticky top-0 z-10 bg-slate-50 dark:bg-gray-900 py-4 mb-6">
                 <div className="flex flex-col md:flex-row justify-between md:items-stretch gap-6">
-                    <div className="w-full md:w-3/4"><Stats posts={posts} progetti={progetti} onFilterClick={handleFilterClick} /></div>
-                    <div className="w-full md:w-1/4 flex flex-col sm:flex-row md:flex-col gap-2">
-                        <button onClick={() => setIsProjectModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Settings size={18} /> Gestisci Progetti</button>
-                        <button onClick={handleExport} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Esporta i tuoi dati'}><Download size={18} /> Esporta</button>
-                        <button onClick={() => setIsImportModalOpen(true)} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Importa da un file'}><Upload size={18} /> Importa</button>
-                        <button onClick={() => setIsAddModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Plus size={18} /> Nuovo Post</button>
+                    {/* ▼▼▼ MODIFICA: Passiamo le funzioni di azione al componente Stats ▼▼▼ */}
+                    <div className="w-full md:w-3/4">
+                        <Stats 
+                            posts={posts} 
+                            progetti={progetti} 
+                            onFilterClick={handleFilterClick}
+                            onNewPostClick={() => setIsAddModalOpen(true)}
+                            onImportClick={() => setIsImportModalOpen(true)}
+                            onExportClick={handleExport}
+                            onProjectsClick={() => setIsProjectModalOpen(true)}
+                        />
                     </div>
+                    {/* ▼▼▼ MODIFICA: Questo blocco di pulsanti ora è visibile solo su desktop ▼▼▼ */}
+                    {isDesktop && (
+                        <div className="w-full md:w-1/4 flex flex-col gap-2">
+                            <button onClick={() => setIsAddModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Plus size={18} /> Nuovo Post</button>
+                            <button onClick={() => setIsProjectModalOpen(true)} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Settings size={18} /> Gestisci Progetti</button>
+                            <button onClick={handleExport} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Esporta i tuoi dati'}><Download size={18} /> Esporta</button>
+                            <button onClick={() => setIsImportModalOpen(true)} disabled={user.plan !== 'pro'} className="w-full h-full justify-center font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title={user.plan !=='pro'?'Funzionalità Pro':'Importa da un file'}><Upload size={18} /> Importa</button>
+                        </div>
+                    )}
                 </div>
             </div>
             
             <DndContext onDragEnd={handleDragEnd} >
-                {viewMode === 'calendar' ? (
-                    isDesktop ? <DesktopView /> : <MobileView />
-                ) : (
-                    <FilteredListView
-                        posts={postsDaCreareFiltrati}
-                        progetti={progetti}
-                        filterCategory={filterCategory!}
-                        onBack={handleShowCalendar}
-                        onPostClick={handleCardClick}
-                        onStatusChange={handleStatusChange}
-                    />
-                )}
+                {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView />) : ( <FilteredListView posts={postsDaCreareFiltrati} progetti={progetti} filterCategory={filterCategory!} onBack={handleShowCalendar} onPostClick={handleCardClick} onStatusChange={handleStatusChange}/> )}
             </DndContext>
 
-            {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (
-                <div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400">
-                    <p>Caricamento...</p>
-                </div>
-            )}
+            {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (<div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400"><p>Caricamento...</p></div>)}
             
             {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModal} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
             {isImportModalOpen && (<ImportModal onClose={handleCloseModal} onImport={handleImport} />)}

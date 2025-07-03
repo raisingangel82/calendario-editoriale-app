@@ -1,61 +1,37 @@
-// Definiamo una struttura (interfaccia) per ogni piattaforma
+import { Facebook, Instagram, Linkedin, Pinterest, Send, ShoppingCart, Youtube, Twitter, Sparkles, Twitch, MessageCircle } from 'lucide-react';
+import { SiTiktok, SiThreads } from 'react-icons/si';
+
+// ▼▼▼ MODIFICA: Aggiunto "publishUrl" alla definizione del tipo ▼▼▼
 export interface PlatformData {
   id: string;
   name: string;
-  icon: string; // La useremo per mostrare l'icona
-  baseUrl: string; // Il link base per la condivisione
-  isActive?: boolean; // <-- AGGIUNGI QUESTA RIGA
+  icon: React.ComponentType<any>;
+  baseUrl: string;
+  publishUrl?: string; // URL per la pagina di creazione post
+  isCustom?: boolean;
 }
 
-// Lista di piattaforme per il piano FREE
-export const freePlatforms: PlatformData[] = [
-  { 
-    id: 'instagram', 
-    name: 'Instagram', 
-    icon: 'instagram', 
-    baseUrl: 'https://www.instagram.com/' 
-  },
-  { 
-    id: 'facebook', 
-    name: 'Facebook', 
-    icon: 'facebook', 
-    baseUrl: 'https://www.facebook.com/sharer/sharer.php?u=' 
-  },
-  { 
-    id: 'x', 
-    name: 'X (Twitter)', 
-    icon: 'x', 
-    baseUrl: 'https://twitter.com/intent/tweet?text=' 
-  },
-  { 
-    id: 'tiktok', 
-    name: 'TikTok', 
-    icon: 'tiktok', 
-    baseUrl:'https://www.tiktok.com/tiktokstudio/upload?from=webapp'
-  },
+// ▼▼▼ MODIFICA: Aggiunti i "publishUrl" di default ▼▼▼
+const defaultPlatforms: Omit<PlatformData, 'id'>[] = [
+  { name: 'Instagram', icon: Instagram, baseUrl: 'https://instagram.com', publishUrl: 'https://www.instagram.com/create/select/' },
+  { name: 'Facebook', icon: Facebook, baseUrl: 'https://facebook.com', publishUrl: 'https://www.facebook.com/business/latest/composer' },
+  { name: 'TikTok', icon: SiTiktok, baseUrl: 'https://tiktok.com', publishUrl: 'https://www.tiktok.com/upload' },
+  { name: 'YouTube', icon: Youtube, baseUrl: 'https://youtube.com', publishUrl: 'https://studio.youtube.com/' },
+  { name: 'X (Twitter)', icon: Twitter, baseUrl: 'https://x.com', publishUrl: 'https://x.com/compose/post' },
+  { name: 'LinkedIn', icon: Linkedin, baseUrl: 'https://linkedin.com', publishUrl: 'https://www.linkedin.com/feed/' },
+  { name: 'Pinterest', icon: Pinterest, baseUrl: 'https://pinterest.com', publishUrl: 'https://www.pinterest.com/pin-builder/' },
+  { name: 'Threads', icon: SiThreads, baseUrl: 'https://threads.net', publishUrl: 'https://www.threads.net/' },
+  { name: 'Telegram', icon: Send, baseUrl: 'https://web.telegram.org', publishUrl: 'https://web.telegram.org/' },
+  { name: 'Amazon', icon: ShoppingCart, baseUrl: 'https://kdp.amazon.com', publishUrl: 'https://kdp.amazon.com/it_IT/title-setup/paperback/new' },
+  { name: 'Twitch', icon: Twitch, baseUrl: 'https://twitch.tv', publishUrl: 'https://dashboard.twitch.tv/stream-manager' },
+  { name: 'Community', icon: Sparkles, baseUrl: '', publishUrl: '' },
+  { name: 'Newsletter', icon: MessageCircle, baseUrl: '', publishUrl: '' },
 ];
 
-// Lista di piattaforme AGGIUNTIVE per il piano PRO
-export const proExclusivePlatforms: PlatformData[] = [
-  { 
-    id: 'linkedin', 
-    name: 'LinkedIn', 
-    icon: 'linkedin', 
-    baseUrl: 'https://www.linkedin.com/feed/?shareActive=true&text=' 
-  },
-  { 
-    id: 'youtube', 
-    name: 'YouTube', 
-    icon: 'youtube', 
-    baseUrl: 'https://www.youtube.com/' 
-  },
-  { 
-    id: 'threads', 
-    name: 'Threads', 
-    icon: 'threads', 
-    baseUrl: 'https://www.threads.net/' 
-  },
-];
+export const allDefaultPlatforms: PlatformData[] = defaultPlatforms.map((p, index) => ({
+  ...p,
+  id: `default-${index}`,
+  isCustom: false
+}));
 
-// Uniamo le due liste per avere la lista completa per gli utenti PRO
-export const allDefaultPlatforms: PlatformData[] = [...freePlatforms, ...proExclusivePlatforms];
+export const freePlatforms = allDefaultPlatforms.filter(p => ['Instagram', 'Facebook', 'TikTok'].includes(p.name));

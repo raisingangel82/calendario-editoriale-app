@@ -1,6 +1,4 @@
-
-
-import { useState, useEffect, useRef } from 'react'; // Aggiunti useRef e tipi
+import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { Calendario } from './components/Calendario';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
@@ -9,15 +7,15 @@ import { signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { LogOut, Settings } from 'lucide-react';
 import { AccountIcon } from './components/AccountIcon';
-import { ThemeProvider, useTheme } from './contexts/ThemeContext'; // Importiamo anche useTheme
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Impostazioni } from './pages/Impostazioni';
 import type { ColorShade } from './data/colorPalette';
-// 
 
 function MainLayout() {
   const { user } = useAuth();
-  const { colorShade, setColorShade } = useTheme(); 
+  // ▼▼▼ MODIFICA: Recuperiamo la nuova funzione getActiveColor ▼▼▼
+  const { colorShade, setColorShade, getActiveColor } = useTheme(); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +33,7 @@ function MainLayout() {
   
   return (
     <>
-      <header className="py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8">
+      <header className="py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8 bg-slate-50 dark:bg-gray-900">
         <div className="w-10"></div> {/* Spacer */}
         <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">
           Calendario Editoriale
@@ -43,10 +41,10 @@ function MainLayout() {
         <div className="flex items-center gap-4">
           <ThemeSwitcher />
           
-          {/* ▼▼▼ NUOVO MENU ACCOUNT ▼▼▼ */}
           <div className="relative" ref={menuRef}>
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="block focus:outline-none rounded-full focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900">
-              <AccountIcon />
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`block focus:outline-none rounded-full focus:ring-2 ${getActiveColor('ring')} focus:ring-offset-2 dark:focus:ring-offset-gray-900`}>
+              {/* ▼▼▼ MODIFICA: Applichiamo il colore dinamico all'icona ▼▼▼ */}
+              <AccountIcon className={getActiveColor('text')} />
             </button>
 
             {isMenuOpen && (
@@ -58,7 +56,11 @@ function MainLayout() {
                   <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-2 mb-2">Intensità Colori</p>
                   <div className="flex justify-around bg-gray-100 dark:bg-gray-900/50 p-1 rounded-md">
                     {(['400', '700', '800'] as ColorShade[]).map(shade => (
-                      <button key={shade} onClick={() => { setColorShade(shade); setIsMenuOpen(false); }} className={`w-full text-xs py-1 px-2 rounded-md transition-colors ${colorShade === shade ? 'bg-red-600 text-white font-semibold' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                      <button 
+                        key={shade} 
+                        onClick={() => { setColorShade(shade); setIsMenuOpen(false); }} 
+                        // ▼▼▼ MODIFICA: Usiamo getActiveColor per lo sfondo del pulsante attivo ▼▼▼
+                        className={`w-full text-xs py-1 px-2 rounded-md transition-colors ${colorShade === shade ? `${getActiveColor('bg')} text-white font-semibold` : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
                         {shade === '400' ? 'Chiara' : shade === '700' ? 'Media' : 'Intensa'}
                       </button>
                     ))}
@@ -85,29 +87,24 @@ function MainLayout() {
   );
 }
 
-// AppContent ora gestisce solo il routing di primo livello
 function AppContent() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="bg-white dark:bg-gray-900 min-h-screen flex items-center justify-center"><p>Caricamento...</p></div>;
+    return <div className="bg-slate-50 dark:bg-gray-900 min-h-screen flex items-center justify-center"><p>Caricamento...</p></div>;
   }
 
   return (
-    <div className="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen font-sans">
+    // ▼▼▼ MODIFICA: Rimosso bg-white per far emergere il colore di sfondo globale ▼▼▼
+    <div className="text-gray-800 dark:text-gray-200 min-h-screen font-sans">
       <Routes>
-        {/* Se l'utente è loggato, mostra il layout principale. Altrimenti, reindirizza al login. */}
         <Route path="/*" element={user ? <MainLayout /> : <Navigate to="/login" />} />
-        
-        {/* Se l'utente non è loggato, mostra la pagina di Auth. Altrimenti, reindirizza alla home. */}
         <Route path="/login" element={!user ? <Auth /> : <Navigate to="/" />} />
       </Routes>
     </div>
   );
 }
 
-
-// Il componente App ora fornisce il BrowserRouter e i contesti
 function App() {
   return (
     <BrowserRouter>

@@ -1,13 +1,15 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import type { ColorShade } from '../data/colorPalette'; // Importiamo il nostro nuovo tipo
+import { type ColorShade, getColor } from '../data/colorPalette';
 
 type Theme = 'light' | 'dark';
 
 interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
-  colorShade: ColorShade; // <-- NUOVO STATO
-  setColorShade: (shade: ColorShade) => void; // <-- NUOVA FUNZIONE
+  colorShade: ColorShade;
+  setColorShade: (shade: ColorShade) => void;
+  // ▼▼▼ MODIFICA: Aggiunta una funzione helper per ottenere la classe del colore attivo ▼▼▼
+  getActiveColor: (type: 'text' | 'bg' | 'border' | 'ring') => string;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -18,10 +20,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return savedTheme || 'light';
   });
 
-  // NUOVO STATO PER LA TONALITÀ
   const [colorShade, setColorShade] = useState<ColorShade>(() => {
       const savedShade = localStorage.getItem('colorShade') as ColorShade | null;
-      return savedShade || '700'; // Default alla tonalità media
+      return savedShade || '700';
   });
 
   useEffect(() => {
@@ -31,7 +32,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // NUOVO EFFETTO PER SALVARE LA TONALITÀ
   useEffect(() => {
       localStorage.setItem('colorShade', colorShade);
   }, [colorShade]);
@@ -40,8 +40,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   };
 
+  // ▼▼▼ MODIFICA: Implementazione della nuova funzione ▼▼▼
+  const getActiveColor = (type: 'text' | 'bg' | 'border' | 'ring'): string => {
+    const color = getColor('red', colorShade); // Usiamo 'red' come colore base del tema
+    switch (type) {
+      case 'text': return color.textClass;
+      case 'bg': return color.bgClass;
+      case 'border': return color.borderClass;
+      case 'ring': return color.ringClass;
+      default: return '';
+    }
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, colorShade, setColorShade }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, colorShade, setColorShade, getActiveColor }}>
       {children}
     </ThemeContext.Provider>
   );

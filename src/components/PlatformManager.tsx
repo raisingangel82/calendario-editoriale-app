@@ -4,7 +4,6 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import { PlatformFormModal } from './PlatformFormModal';
-// ▼▼▼ IMPORT CORRETTO ▼▼▼
 import { type PlatformData } from '../data/defaultPlatforms';
 
 export const PlatformManager: React.FC = () => {
@@ -25,9 +24,10 @@ export const PlatformManager: React.FC = () => {
       const userPlatforms = querySnapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.data().name,
-        icon: doc.data().icon,
+        icon: doc.data().icon, // Icona non è usata qui ma la manteniamo per coerenza
         baseUrl: doc.data().baseUrl,
-        isActive: doc.data().isActive ?? true, // Aggiungiamo un default anche qui per sicurezza
+        // ▼▼▼ MODIFICA: Recuperiamo il nuovo campo ▼▼▼
+        publishUrl: doc.data().publishUrl, 
       } as PlatformData));
       setPlatforms(userPlatforms);
       setLoading(false);
@@ -55,7 +55,7 @@ export const PlatformManager: React.FC = () => {
     }
   };
 
-  const handleSave = async (platformData: Omit<PlatformData, 'id'>) => {
+  const handleSave = async (platformData: Omit<PlatformData, 'id' | 'icon'>) => {
     if (!user) return;
 
     if (editingPlatform) {
@@ -90,7 +90,10 @@ export const PlatformManager: React.FC = () => {
             <div key={platform.id} className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-200 dark:border-gray-700">
               <div>
                 <p className="font-semibold text-gray-900 dark:text-gray-100">{platform.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 break-all">{platform.baseUrl}</p>
+                {/* ▼▼▼ MODIFICA: Visualizziamo anche il publishUrl se esiste ▼▼▼ */}
+                <p className="text-xs text-gray-500 dark:text-gray-400 break-all" title="URL di Pubblicazione">
+                  Pubblica: {platform.publishUrl || 'Non impostato'}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => handleEdit(platform)} className="p-2 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Modifica"><Edit size={16} /></button>
