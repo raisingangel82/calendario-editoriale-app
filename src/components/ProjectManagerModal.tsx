@@ -16,7 +16,6 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ proget
   const [sintesi, setSintesi] = useState('');
   const [immagineUrl, setImmagineUrl] = useState('');
   const [color, setColor] = useState(projectColorPalette[0].base);
-
   const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,11 +80,8 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ proget
           <h2 className="text-xl font-light tracking-widest text-gray-600 dark:text-gray-300 uppercase">Gestisci Progetti</h2>
           <button onClick={onClose} className="p-2 rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"><X size={20} /></button>
         </div>
+
         <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-3 custom-scrollbar">
-            {/* ... qui dentro rimangono il form e la lista dei progetti ... */}
-        </div>
-        <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-3">
-            {/* Sezione per Aggiungere o Modificare un Progetto */}
             <div>
               <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-4">{editingId ? `Modifica Progetto: ${nome}` : 'Aggiungi Nuovo Progetto'}</h3>
               <div className="space-y-4 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
@@ -103,7 +99,9 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ proget
                                 type="button"
                                 title={c.name}
                                 onClick={() => setColor(c.base)}
-                                className={`w-8 h-8 rounded-full ${c.shades['700']} transition-transform hover:scale-110 ${color === c.base ? 'ring-2 ring-offset-2 ring-offset-gray-50 dark:ring-offset-gray-800/50 ring-red-500' : ''}`}
+                                // ▼▼▼ MODIFICA: Usiamo lo stile in linea con il codice HEX ▼▼▼
+                                style={{ backgroundColor: c.shades['700'].hex }}
+                                className={`w-8 h-8 rounded-full transition-transform hover:scale-110 ${color === c.base ? 'ring-2 ring-offset-2 ring-offset-gray-100 dark:ring-offset-gray-800 ring-red-500' : ''}`}
                             />
                         ))}
                     </div>
@@ -130,7 +128,6 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ proget
               </div>
             </div>
 
-            {/* Sezione Lista Progetti Esistenti */}
             <div>
                 <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-4">Progetti Esistenti</h3>
                 {progetti.length > 0 ? (
@@ -140,7 +137,8 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ proget
                       return (
                       <li key={proj.id} className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-md">
                         <div className="flex items-center gap-3">
-                           <div className={`w-4 h-4 rounded-full ${projColor.shades['700']}`}></div>
+                           {/* Anche qui usiamo lo stile in linea per la massima affidabilità */}
+                           <div className="w-4 h-4 rounded-full" style={{ backgroundColor: projColor.shades['700'].hex }}></div>
                            <span className="text-gray-800 dark:text-gray-200 font-semibold">{proj.nome}</span>
                         </div>
                         <div className="flex items-center gap-1">
