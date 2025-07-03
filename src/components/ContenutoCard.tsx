@@ -6,35 +6,28 @@ import { it } from 'date-fns/locale';
 import type { Post } from '../types';
 import { PlatformIcon } from './PlatformIcon';
 import { GripVertical, Clock, CheckCircle } from 'lucide-react';
-// ▼▼▼ IMPORTIAMO SIA 'useTheme' SIA LA NOSTRA NUOVA FUNZIONE 'getColor' ▼▼▼
 import { useTheme } from '../contexts/ThemeContext';
 import { getColor } from '../data/colorPalette';
 
 interface ContenutoCardProps {
     post: Post;
     nomeProgetto?: string;
-    projectColor?: string; // Ora questo sarà il colore base, es. "blue"
+    projectColor?: string;
     showDate?: boolean;
+    // ▼▼▼ MODIFICA: Aggiunta la prop per distinguere la vista mobile ▼▼▼
+    isMobileView?: boolean; 
     onCardClick: (post: Post) => void;
     onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
     isDraggable: boolean;
 }
 
-export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto, projectColor, showDate, onCardClick, onStatusChange, isDraggable }) => {
+export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto, projectColor, showDate, isMobileView, onCardClick, onStatusChange, isDraggable }) => {
     const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: post.id, disabled: !isDraggable });
     
-    // ▼▼▼ 1. OTTENIAMO LA TONALITÀ GLOBALE DAL CONTESTO ▼▼▼
     const { colorShade } = useTheme();
-
     const style = { transform: CSS.Translate.toString(transform) };
-    
-    // ▼▼▼ 2. USIAMO LA FUNZIONE HELPER PER OTTENERE IL COLORE FINALE ▼▼▼
-    // Combina il colore base del progetto (es. 'blue') con la tonalità scelta (es. '700')
     const finalColor = getColor(projectColor || 'stone', colorShade); 
-
-    const borderStyle = {
-        borderLeft: `5px solid ${finalColor.hex}` // Usiamo il codice esadecimale
-    };
+    const borderStyle = { borderLeft: `5px solid ${finalColor.hex}` };
 
     const handleStatusClick = (e: React.MouseEvent, field: 'statoProdotto' | 'statoPubblicato', currentValue: boolean) => {
         e.stopPropagation();
@@ -72,6 +65,13 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
                 <div>
                     <p className="font-bold text-sm text-gray-800 dark:text-gray-100 break-words">{nomeProgetto || 'Progetto non assegnato'}</p>
                     <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{post.tipoContenuto}</p>
+                    
+                    {/* ▼▼▼ MODIFICA: Aggiunta la descrizione per la vista mobile ▼▼▼ */}
+                    {isMobileView && post.descrizione && (
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 break-words">
+                           {post.descrizione.substring(0, 75)}{post.descrizione.length > 75 ? '...' : ''}
+                        </p>
+                    )}
                 </div>
                 {showDate && post.data && (
                     <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-700">
