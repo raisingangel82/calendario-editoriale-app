@@ -35,7 +35,7 @@ function MainLayout() {
       <header className="sticky top-0 z-30 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8 bg-gray-100 dark:bg-gray-900">
         <div className="w-10"></div>
         <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">
-          Calendario Editoriale
+          AuthorFlow
         </h1>
         <div className="flex items-center gap-4">
           <ThemeSwitcher />
