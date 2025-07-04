@@ -51,7 +51,6 @@ export const Stats: React.FC<StatsProps> = ({ posts, progetti, onFilterClick, on
 
     const ProjectFilter = () => ( <div><label htmlFor="project-filter" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Filtra Statistiche</label><select id="project-filter" value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)} className="w-full bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md p-2 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"><option value="all">Tutti i Progetti</option>{progetti.map(proj => (<option key={proj.id} value={proj.id}>{proj.nome}</option>))}</select></div> );
     
-    // ▼▼▼ MODIFICA: Il componente ora accetta una prop 'isScrollable' ▼▼▼
     const ProduzioneProgetto = ({ isScrollable = false }) => ( 
         <div className="relative h-full flex flex-col">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2 flex-shrink-0"><BookOpen size={16} /> Produzione per Progetto</h3>

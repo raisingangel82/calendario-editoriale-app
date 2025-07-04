@@ -46,7 +46,7 @@ export const Calendario: React.FC = () => {
     const [visibleWeeksCount, setVisibleWeeksCount] = useState(4);
     const loadMoreRef = useRef<HTMLDivElement>(null);
     const isDesktop = useBreakpoint();
-    const dataInizio = new Date('2025-06-30');
+    const dataInizio = new Date('2025-07-04');
     
     const initialScrollDone = useRef(false);
     const [mainHeaderHeight, setMainHeaderHeight] = useState(0);
@@ -151,7 +151,7 @@ export const Calendario: React.FC = () => {
         <div>
             <div 
                 id="stats-header" 
-                className="sticky z-20 bg-gray-100 dark:bg-gray-900 pb-4 mb-6"
+                className="sticky z-20 bg-gray-100 dark:bg-gray-900 pb-4"
                 style={{ top: `${mainHeaderHeight}px` }}
             >
                 <div>
@@ -167,11 +167,14 @@ export const Calendario: React.FC = () => {
                 </div>
             </div>
             
-            <DndContext onDragEnd={handleDragEnd} >
-                {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView />) : ( <FilteredListView posts={postsDaCreareFiltrati} progetti={progetti} filterCategory={filterCategory as Categoria} onBack={handleShowCalendar} onPostClick={handleCardClick} onStatusChange={handleStatusChange}/> )}
-            </DndContext>
+            {/* ▼▼▼ MODIFICA: Rimosso il commento e pulito il div ▼▼▼ */}
+            <div className="mt-6">
+                <DndContext onDragEnd={handleDragEnd} >
+                    {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView />) : ( <FilteredListView posts={postsDaCreareFiltrati} progetti={progetti} filterCategory={filterCategory as Categoria} onBack={handleShowCalendar} onPostClick={handleCardClick} onStatusChange={handleStatusChange}/> )}
+                </DndContext>
 
-            {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (<div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400"><p>Caricamento...</p></div>)}
+                {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (<div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400"><p>Caricamento...</p></div>)}
+            </div>
             
             {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModal} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
             {isImportModalOpen && (<ImportModal onClose={handleCloseModal} onImport={handleImport} />)}
