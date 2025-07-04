@@ -56,8 +56,19 @@ async function sendNotifications() {
     const message = { notification: { title, body }, tokens };
 
     console.log(`Invio notifica a ${userId} per ${userPosts.length} post.`);
-    // ▼▼▼ MODIFICA: Usiamo il nome corretto della funzione ▼▼▼
-    await admin.messaging().sendEachForMulticast(message);
+    
+    // ▼▼▼ MODIFICA: Aggiungiamo il log della risposta di Firebase ▼▼▼
+    const response = await admin.messaging().sendEachForMulticast(message);
+    console.log('Messaggio inviato a Firebase. Risposta ricevuta:', JSON.stringify(response, null, 2));
+
+    if (response.failureCount > 0) {
+      console.error('ATTENZIONE: Invio fallito per alcuni token.');
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          console.error(`- Token [${tokens[idx]}]: ${resp.error.message}`);
+        }
+      });
+    }
   }
 }
 
