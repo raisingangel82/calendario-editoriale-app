@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react'; // Aggiunto useEffect
+import React, { useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import type { Post, Progetto } from '../types';
+import type { Post, Progetto, Categoria } from '../types';
 import { ContenutoCard } from './ContenutoCard';
 
 interface FilteredListViewProps {
@@ -14,10 +14,10 @@ interface FilteredListViewProps {
 
 export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, progetti, filterCategory, onBack, onPostClick, onStatusChange }) => {
     
-    // ▼▼▼ MODIFICA: Aggiunto questo blocco per resettare lo scroll ▼▼▼
+    // ▼▼▼ MODIFICA: Aggiunta "filterCategory" alle dipendenze ▼▼▼
     useEffect(() => {
         window.scrollTo(0, 0);
-    }, []); // L'array vuoto assicura che venga eseguito solo quando il componente appare
+    }, [filterCategory]);
 
     return (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-lg max-w-screen-2xl mx-auto">
