@@ -1,5 +1,3 @@
-// File: scripts/send-notifications.js
-
 const admin = require('firebase-admin');
 
 // Recupera la chiave dal segreto di GitHub
@@ -58,7 +56,8 @@ async function sendNotifications() {
     const message = { notification: { title, body }, tokens };
 
     console.log(`Invio notifica a ${userId} per ${userPosts.length} post.`);
-    await admin.messaging().sendMulticast(message);
+    // ▼▼▼ MODIFICA: Usiamo il nome corretto della funzione ▼▼▼
+    await admin.messaging().sendEachForMulticast(message);
   }
 }
 
