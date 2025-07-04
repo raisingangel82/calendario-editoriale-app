@@ -10,6 +10,7 @@ import { AccountIcon } from './components/AccountIcon';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Impostazioni } from './pages/Impostazioni';
+import { ScrollToTop } from './components/ScrollToTop'; // ▼▼▼ MODIFICA: Import del nuovo componente ▼▼▼
 import type { ColorShade } from './data/colorPalette';
 
 function MainLayout() {
@@ -34,18 +35,15 @@ function MainLayout() {
     <>
       <header className="sticky top-0 z-30 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8 bg-gray-100 dark:bg-gray-900">
         <div className="w-10"></div>
-        {/* ▼▼▼ QUESTA SEZIONE È STATA PULITA ▼▼▼ */}
         <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">
           AuthorFlow
         </h1>
         <div className="flex items-center gap-4">
           <ThemeSwitcher />
-          
           <div className="relative" ref={menuRef}>
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`block focus:outline-none rounded-full focus:ring-2 ${getActiveColor('ring')} focus:ring-offset-2 dark:focus:ring-offset-gray-900`}>
               <AccountIcon className={getActiveColor('bg')} />
             </button>
-
             {isMenuOpen && (
               <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 z-50">
                 <div className="p-2 border-b border-gray-200 dark:border-gray-700">
@@ -103,6 +101,8 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
+      {/* ▼▼▼ MODIFICA: Aggiunto il componente qui ▼▼▼ */}
+      <ScrollToTop />
       <ThemeProvider>
         <AuthProvider>
           <AppContent />
