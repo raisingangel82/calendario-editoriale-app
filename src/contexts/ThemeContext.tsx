@@ -1,14 +1,19 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { type ColorShade, getColor } from '../data/colorPalette';
+import { type ColorShade, type ProjectColor, getColor, projectColorPalette } from '../data/colorPalette';
 
 type Theme = 'light' | 'dark';
+
+// Definiamo il tipo per il colore di base, che sarà una delle stringhe della nostra palette
+type BaseColor = ProjectColor['base'];
 
 interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
   colorShade: ColorShade;
   setColorShade: (shade: ColorShade) => void;
-  // ▼▼▼ MODIFICA: Aggiunta una funzione helper per ottenere la classe del colore attivo ▼▼▼
+  // ▼▼▼ MODIFICA: Aggiunti il colore di base e la funzione per cambiarlo ▼▼▼
+  baseColor: BaseColor;
+  setBaseColor: (color: BaseColor) => void;
   getActiveColor: (type: 'text' | 'bg' | 'border' | 'ring') => string;
 }
 
@@ -25,6 +30,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return savedShade || '700';
   });
 
+  // ▼▼▼ MODIFICA: Nuovo stato per il colore di base del tema ▼▼▼
+  const [baseColor, setBaseColor] = useState<BaseColor>(() => {
+    const savedColor = localStorage.getItem('baseColor') as BaseColor | null;
+    // Ci assicuriamo che il colore salvato sia valido, altrimenti usiamo 'red' di default
+    return savedColor && projectColorPalette.some(p => p.base === savedColor) ? savedColor : 'red';
+  });
+
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove(theme === 'light' ? 'dark' : 'light');
@@ -36,13 +48,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('colorShade', colorShade);
   }, [colorShade]);
 
+  // ▼▼▼ MODIFICA: Salviamo il colore di base nel localStorage ▼▼▼
+  useEffect(() => {
+    localStorage.setItem('baseColor', baseColor);
+  }, [baseColor]);
+
   const toggleTheme = () => {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   };
 
-  // ▼▼▼ MODIFICA: Implementazione della nuova funzione ▼▼▼
+  // ▼▼▼ MODIFICA: La funzione ora usa lo stato 'baseColor' dinamico ▼▼▼
   const getActiveColor = (type: 'text' | 'bg' | 'border' | 'ring'): string => {
-    const color = getColor('red', colorShade); // Usiamo 'red' come colore base del tema
+    const color = getColor(baseColor, colorShade); // Usa il colore di base corrente
     switch (type) {
       case 'text': return color.textClass;
       case 'bg': return color.bgClass;
@@ -53,7 +70,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, colorShade, setColorShade, getActiveColor }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, colorShade, setColorShade, baseColor, setBaseColor, getActiveColor }}>
       {children}
     </ThemeContext.Provider>
   );
