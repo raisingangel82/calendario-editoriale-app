@@ -86,7 +86,7 @@ export const Stats: React.FC<StatsProps> = ({ posts, progetti, onFilterClick, on
                     </div>
                 </div>
             ) : (
-                // LAYOUT MOBILE CON SWIPER
+                // ▼▼▼ MODIFICA: Questo è il layout corretto per il mobile con lo slider a 3 pagine ▼▼▼
                 <><style>{`.stats-swiper .swiper-pagination-bullet-active { background-color: ${getActiveColor('text')}; }`}</style>
                 <Swiper modules={[Pagination]} pagination={{ clickable: true }} className="w-full stats-swiper h-full">
                     <SwiperSlide><div className="grid grid-cols-2 gap-4 p-1 pb-8 h-full items-start"><ProduzioneProgetto isScrollable={true}/><Riepilogo /></div></SwiperSlide>
