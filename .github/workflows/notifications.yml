@@ -25,4 +25,4 @@ jobs:
       - name: Run notification script
         env:
           FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
-        run: node scripts/send-notifications.js
+        run: node scripts/send-notifications.cjs
