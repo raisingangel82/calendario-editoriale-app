@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import type { Post, Progetto, Categoria } from '../types';
+import type { Post, Progetto} from '../types';
 import { ContenutoCard } from './ContenutoCard';
 
 interface FilteredListViewProps {
