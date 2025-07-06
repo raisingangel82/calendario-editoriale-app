@@ -1,115 +1,203 @@
-import { useState, useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
-import { Calendario } from './components/Calendario';
-import { ThemeSwitcher } from './components/ThemeSwitcher';
-import { Auth } from './components/Auth';
+import { useState, useEffect, useMemo } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { db, auth } from './firebase';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, getDocs, setDoc, getDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { auth } from './firebase';
-import { LogOut, Settings } from 'lucide-react';
-import { AccountIcon } from './components/AccountIcon';
+import { Plus, Download, X } from 'lucide-react';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
+
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { useBreakpoint } from './hooks/useBreakpoint';
+
+import { Sidebar } from './components/Sidebar';
+import { BottomBar } from './components/BottomBar';
+import { Header } from './components/Header';
+import { ScrollToTop } from './components/ScrollToTop';
+
+import { Calendario } from './components/Calendario';
+import { FilteredListView } from './components/FilteredListView';
+import { Stats } from './components/Stats';
 import { Impostazioni } from './pages/Impostazioni';
-import { ScrollToTop } from './components/ScrollToTop'; // ▼▼▼ MODIFICA: Import del nuovo componente ▼▼▼
-import type { ColorShade } from './data/colorPalette';
+import { Auth } from './components/Auth';
+
+import { ContenutoModal } from './components/ContenutoModal';
+import { ImportModal } from './components/ImportModal';
+import { ProjectManagerModal } from './components/ProjectManagerModal';
+import { ExportModal } from './components/ExportModal'; // Importato il nuovo modale
+
+import type { Post, Progetto, Categoria } from './types';
+
+const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
+    const tipo = (tipoContenuto || "").toLowerCase();
+    if (['reel', 'video', 'vlog', 'booktrailer'].some(term => tipo.includes(term))) return 'Video';
+    if (['immagine', 'carousel', 'grafica'].some(term => tipo.includes(term))) return 'Immagine';
+    return 'Testo';
+};
+
+const normalizeDateToMillis = (date: any): number => {
+    if (!date) return 0;
+    if (date instanceof Timestamp) return date.toMillis();
+    if (date instanceof Date) return date.getTime();
+    if (typeof date === 'string' || typeof date === 'number') {
+        const parsedDate = new Date(date);
+        if (!isNaN(parsedDate.getTime())) return parsedDate.getTime();
+    }
+    return 0;
+};
 
 function MainLayout() {
   const { user } = useAuth();
-  const { colorShade, setColorShade, getActiveColor } = useTheme(); 
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const isDesktop = useBreakpoint();
+  const location = useLocation();
 
-  const handleLogout = async () => { await signOut(auth); };
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [progetti, setProgetti] = useState<Progetto[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  
+  const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  
+  const [actionButton, setActionButton] = useState({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
+    if (!user) return;
+    setLoadingData(true);
+    const userPrefsRef = doc(db, 'userPreferences', user.uid);
+    getDoc(userPrefsRef).then(docSnap => {
+        if (docSnap.exists() && docSnap.data().workingDays) setWorkingDays(docSnap.data().workingDays);
+    });
+
+    const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
+    const unsubPosts = onSnapshot(qPosts, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[]); setLoadingData(false); });
+    const qProgetti = query(collection(db, "progetti"), where("userId", "==", user.uid));
+    // BUG FIX: La type assertion `as Progetto[]` è stata spostata all'interno della chiamata a `setProgetti`.
+    const unsubProgetti = onSnapshot(qProgetti, (snapshot) => setProgetti(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Progetto[]));
+    return () => { unsubPosts(); unsubProgetti(); };
+  }, [user]);
+
+  useEffect(() => {
+      switch (location.pathname) {
+          case '/todo':
+              setActionButton({ icon: Download, onClick: () => setIsExportModalOpen(true), label: 'Esporta Contenuti' });
+              break;
+          case '/stats':
+          case '/utility':
+              setActionButton({ icon: Plus, onClick: () => {}, label: 'Nessuna Azione' });
+              break;
+          case '/':
+          default:
+              setActionButton({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
+              break;
       }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [menuRef]);
+  }, [location.pathname]);
   
+  const handleSetWorkingDays = async (days: number[]) => {
+      setWorkingDays(days);
+      if(user) await setDoc(doc(db, 'userPreferences', user.uid), { workingDays: days }, { merge: true });
+  }
+
+  const handleCloseModals = () => { setSelectedPost(null); setIsAddModalOpen(false); setIsImportModalOpen(false); setIsProjectModalOpen(false); setIsExportModalOpen(false); };
+  const handleAddPost = async (data: any) => { if (user) await addDoc(collection(db, 'contenuti'), { ...data, userId: user.uid, data: Timestamp.fromDate(data.data as Date) }); handleCloseModals(); };
+  const handleSavePost = async (data: any) => { if (selectedPost) await updateDoc(doc(db, 'contenuti', selectedPost.id), { ...data, data: Timestamp.fromDate(data.data as Date) }); handleCloseModals(); };
+  const handleDeletePost = async (id: string) => { await deleteDoc(doc(db, 'contenuti', id)); handleCloseModals(); };
+  const handleStatusChange = async (id: string, field: 'statoProdotto'|'statoPubblicato', value: boolean) => { const ref = doc(db, 'contenuti', id); if (field === 'statoPubblicato' && value) await updateDoc(ref, { statoProdotto: true, statoPubblicato: true }); else if (field === 'statoProdotto' && !value) await updateDoc(ref, { statoProdotto: false, statoPubblicato: false }); else await updateDoc(ref, { [field]: value }); };
+  const handleDuplicatePost = async (post: Post) => { if (user) { const { id, ...data } = post; await addDoc(collection(db, 'contenuti'), { ...data, userId: user.uid, statoProdotto: false, statoPubblicato: false }); handleCloseModals(); }};
+  
+  const handleExportFromTodo = (count: number, filter: Categoria | 'all') => {
+    const postsToExport = posts
+        .filter(post => !post.statoProdotto && (filter === 'all' || getCategoriaGenerica(post.tipoContenuto) === filter))
+        .sort((a, b) => normalizeDateToMillis(a.data) - normalizeDateToMillis(b.data))
+        .slice(0, count);
+    let markdownContent = `# Piano Editoriale - ${filter === 'all' ? 'Tutti i Contenuti' : filter}\n\n`;
+    postsToExport.forEach(post => {
+        const progetto = progetti.find(p => p.id === post.projectId);
+        const dataPost = post.data ? format((post.data as Timestamp).toDate(), 'PPP', { locale: it }) : 'Non definita';
+        markdownContent += `--- \n\n## ${post.titolo || 'Senza Titolo'}\n- **Data:** ${dataPost}\n- **Progetto:** ${progetto?.nome || 'N/A'}\n- **Tipo:** ${post.tipoContenuto || 'N/A'}\n- **Descrizione:** ${post.descrizione || ''}\n- **Note:** ${post.note || ''}\n\n`;
+    });
+    const blob = new Blob([markdownContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `piano-editoriale-${filter}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+  
+  const handleExportDatabase = () => {
+    const dataToExport = { posts: posts, progetti: progetti };
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(dataToExport, null, 2))}`;
+    const link = document.createElement("a");
+    link.href = jsonString;
+    link.download = `authorflow_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    link.remove();
+  };
+
+  const handleImport = async (imported: any[], mode: 'add'|'overwrite') => { /* ... */ };
+  const handleAddProject = async (data: any) => { if(user) await addDoc(collection(db, 'progetti'), { ...data, userId: user.uid }); };
+  const handleUpdateProject = async (id: string, data: any) => await updateDoc(doc(db, "progetti", id), data);
+  const handleDeleteProject = async (id: string) => await deleteDoc(doc(db, 'progetti', id));
+  
+  if (loadingData) return <div className="h-screen w-screen flex items-center justify-center"><p>Caricamento dati...</p></div>;
+
+  const routes = (
+      <Routes>
+          <Route path="/" element={<Calendario posts={posts} progetti={progetti} workingDays={workingDays} onCardClick={setSelectedPost} onStatusChange={handleStatusChange} />} />
+          <Route path="/todo" element={<FilteredListView posts={posts} progetti={progetti} onPostClick={setSelectedPost} onStatusChange={handleStatusChange} />} />
+          <Route path="/stats" element={<Stats posts={posts} progetti={progetti} />} />
+          <Route path="/utility" element={<Impostazioni onImportClick={() => setIsImportModalOpen(true)} onExportClick={handleExportDatabase} onProjectsClick={() => setIsProjectModalOpen(true)} workingDays={workingDays} setWorkingDays={handleSetWorkingDays} />} />
+      </Routes>
+  );
+
   return (
     <>
-      <header className="sticky top-0 z-30 py-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-8 bg-gray-100 dark:bg-gray-900">
-        <div className="w-10"></div>
-        <h1 className="text-xl font-normal tracking-widest text-center text-gray-500 dark:text-gray-400 uppercase">
-          AuthorFlow
-        </h1>
-        <div className="flex items-center gap-4">
-          <ThemeSwitcher />
-          <div className="relative" ref={menuRef}>
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`block focus:outline-none rounded-full focus:ring-2 ${getActiveColor('ring')} focus:ring-offset-2 dark:focus:ring-offset-gray-900`}>
-              <AccountIcon className={getActiveColor('bg')} />
-            </button>
-            {isMenuOpen && (
-              <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 z-50">
-                <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-                  <p className="font-semibold text-sm text-gray-800 dark:text-gray-200 px-2 pt-1 pb-2 truncate">{user?.email}</p>
-                </div>
-                <div className="p-2">
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-2 mb-2">Intensità Colori</p>
-                  <div className="flex justify-around bg-gray-100 dark:bg-gray-900/50 p-1 rounded-md">
-                    {(['400', '700', '800'] as ColorShade[]).map(shade => (
-                      <button 
-                        key={shade} 
-                        onClick={() => { setColorShade(shade); setIsMenuOpen(false); }} 
-                        className={`w-full text-xs py-1 px-2 rounded-md transition-colors ${colorShade === shade ? `${getActiveColor('bg')} text-white font-semibold` : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
-                        {shade === '400' ? 'Chiara' : shade === '700' ? 'Media' : 'Intensa'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {user?.plan === 'pro' && (
-                    <Link to="/impostazioni" onClick={() => setIsMenuOpen(false)} className="border-t border-gray-200 dark:border-gray-700 flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><Settings size={16}/> Impostazioni</Link>
-                )}
-                <button onClick={handleLogout} className="border-t border-gray-200 dark:border-gray-700 flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><LogOut size={16}/> Logout</button>
-              </div>
-            )}
+      <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
+        <div className="flex flex-1 overflow-hidden">
+          {isDesktop && <Sidebar actionConfig={actionButton} />}
+          <div className="flex-1 flex flex-col">
+            <div className="flex-shrink-0">
+              <Header onLogout={() => signOut(auth)} />
+            </div>
+            <main id="main-scroll-container" className="flex-1 overflow-y-auto custom-scrollbar">
+              {routes}
+            </main>
           </div>
         </div>
-      </header>
-      <main className="px-4 md:px-8 pb-4 md:pb-8">
-        <div className="max-w-screen-2xl mx-auto">
-          <Routes>
-            <Route path="/" element={<Calendario />} />
-            <Route path="/impostazioni" element={user?.plan === 'pro' ? <Impostazioni /> : <Navigate to="/" />} />
-          </Routes>
-        </div>
-      </main>
+        {!isDesktop && <BottomBar actionConfig={actionButton} />}
+      </div>
+      {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModals} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
+      {isImportModalOpen && (<ImportModal onClose={handleCloseModals} onImport={handleImport} />)}
+      {isProjectModalOpen && ( <ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} /> )}
+      <ExportModal 
+          isOpen={isExportModalOpen}
+          onClose={handleCloseModals}
+          onExport={handleExportFromTodo}
+          maxCount={posts.filter(p => !p.statoProdotto).length}
+      />
     </>
   );
 }
 
 function AppContent() {
   const { user, loading } = useAuth();
-  if (loading) {
-    return <div className="bg-gray-100 dark:bg-gray-900 min-h-screen flex items-center justify-center"><p>Caricamento...</p></div>;
-  }
+  if (loading) return <div className="h-screen w-screen flex items-center justify-center"><p>Inizializzazione...</p></div>;
+  
   return (
-    <div className="text-gray-800 dark:text-gray-200 min-h-screen font-sans">
-      <Routes>
-        <Route path="/*" element={user ? <MainLayout /> : <Navigate to="/login" />} />
-        <Route path="/login" element={!user ? <Auth /> : <Navigate to="/" />} />
-      </Routes>
-    </div>
+    <Routes>
+      <Route path="/*" element={user ? <MainLayout /> : <Navigate to="/login" />} />
+      <Route path="/login" element={!user ? <Auth /> : <Navigate to="/" />} />
+    </Routes>
   );
 }
 
-function App() {
-  return (
-    <BrowserRouter>
-      {/* ▼▼▼ MODIFICA: Aggiunto il componente qui ▼▼▼ */}
-      <ScrollToTop />
-      <ThemeProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
-      </ThemeProvider>
-    </BrowserRouter>
-  );
-}
-
+function App() { return ( <BrowserRouter> <ScrollToTop /> <ThemeProvider> <AuthProvider> <AppContent /> </AuthProvider> </ThemeProvider> </BrowserRouter> ); }
 export default App;

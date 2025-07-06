@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
 import { type PlatformData } from '../data/defaultPlatforms';
+import { BaseModal } from './BaseModal';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface PlatformFormModalProps {
   isOpen: boolean;
@@ -11,63 +12,36 @@ interface PlatformFormModalProps {
 
 export const PlatformFormModal: React.FC<PlatformFormModalProps> = ({ isOpen, onClose, onSave, platformToEdit }) => {
   const [name, setName] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
-  // ▼▼▼ MODIFICA: Aggiunto lo stato per il nuovo campo ▼▼▼
   const [publishUrl, setPublishUrl] = useState('');
+  const { getActiveColor } = useTheme();
 
-  useEffect(() => {
-    if (platformToEdit) {
-      setName(platformToEdit.name);
-      setBaseUrl(platformToEdit.baseUrl);
-      setPublishUrl(platformToEdit.publishUrl || '');
-    } else {
-      setName('');
-      setBaseUrl('');
-      setPublishUrl('');
-    }
-  }, [platformToEdit]);
+  useEffect(() => { if (platformToEdit) { setName(platformToEdit.name); setPublishUrl(platformToEdit.publishUrl || ''); } else { setName(''); setPublishUrl(''); } }, [platformToEdit, isOpen]);
+  
+  const handleSaveClick = () => { if (!name) { alert('Il nome della piattaforma è obbligatorio.'); return; } onSave({ name, publishUrl }); };
 
-  const handleSaveClick = () => {
-    if (!name) {
-      alert('Il nome della piattaforma è obbligatorio.');
-      return;
-    }
-    onSave({ name, baseUrl, publishUrl });
-  };
+  const inputStyle = "w-full p-3 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-base text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500";
+  const labelStyle = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2";
 
-  if (!isOpen) return null;
-
-  const inputStyle = "w-full p-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none";
-  const labelStyle = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1";
+  const footerContent = (
+    <div className="flex justify-end gap-3">
+      <button onClick={onClose} className="px-6 py-3 text-base font-medium rounded-lg bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">Annulla</button>
+      <button onClick={handleSaveClick} className={`px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')}`}>Salva Piattaforma</button>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold">{platformToEdit ? 'Modifica Piattaforma' : 'Nuova Piattaforma'}</h3>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><X size={20} /></button>
+    <BaseModal isOpen={isOpen} onClose={onClose} title={platformToEdit ? 'Modifica Piattaforma' : 'Nuova Piattaforma'} footer={footerContent}>
+      <div className="space-y-6">
+        <div>
+          <label htmlFor="platform-name" className={labelStyle}>Nome Piattaforma</label>
+          <input id="platform-name" type="text" value={name} onChange={e => setName(e.target.value)} className={inputStyle} placeholder="Es. Blog Personale"/>
         </div>
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="platform-name" className={labelStyle}>Nome Piattaforma</label>
-            <input id="platform-name" type="text" value={name} onChange={e => setName(e.target.value)} className={inputStyle} placeholder="Es. Blog Personale"/>
-          </div>
-          <div>
-            <label htmlFor="platform-base-url" className={labelStyle}>URL di Base (obsoleto, non più usato)</label>
-            <input id="platform-base-url" type="text" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} className={inputStyle} placeholder="Es. https://www.mioblog.com" disabled/>
-          </div>
-          {/* ▼▼▼ MODIFICA: Aggiunto il campo per l'URL di pubblicazione ▼▼▼ */}
-          <div>
-            <label htmlFor="platform-publish-url" className={labelStyle}>URL di Pubblicazione</label>
-            <input id="platform-publish-url" type="text" value={publishUrl} onChange={e => setPublishUrl(e.target.value)} className={inputStyle} placeholder="Es. https://www.facebook.com/business/latest/composer"/>
-            <p className="text-xs text-gray-400 mt-1">L'URL a cui verrai reindirizzato per creare un nuovo post.</p>
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <button onClick={onClose} className="py-2 px-4 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Annulla</button>
-          <button onClick={handleSaveClick} className="py-2 px-4 bg-red-600 text-white rounded-md hover:bg-red-700">Salva</button>
+        <div>
+          <label htmlFor="platform-publish-url" className={labelStyle}>URL di Pubblicazione (Opzionale)</label>
+          <input id="platform-publish-url" type="text" value={publishUrl} onChange={e => setPublishUrl(e.target.value)} className={inputStyle} placeholder="Es. https://.../new-post"/>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Link diretto per creare un nuovo post sulla piattaforma.</p>
         </div>
       </div>
-    </div>
+    </BaseModal>
   );
 };

@@ -1,20 +1,27 @@
 import { useState, useEffect } from 'react';
 
-// Valore del breakpoint 'md' di Tailwind (768px)
-const breakpoint = 768; 
+// Il valore è impostato a 1024px come da richiesta
+const DESKTOP_QUERY = '(min-width: 1024px)';
 
-export const useBreakpoint = () => {
-  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= breakpoint);
+export const useBreakpoint = (): boolean => {
+  // Controlla il valore iniziale al primo caricamento
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia(DESKTOP_QUERY).matches;
+    }
+    return false;
+  });
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsDesktop(window.innerWidth >= breakpoint);
+    const mediaQueryList = window.matchMedia(DESKTOP_QUERY);
+    const listener = (event: MediaQueryListEvent) => {
+      setIsDesktop(event.matches);
     };
 
-    window.addEventListener('resize', handleResize);
-
-    // Pulisci l'evento quando il componente non è più visibile
-    return () => window.removeEventListener('resize', handleResize);
+    mediaQueryList.addEventListener('change', listener);
+    
+    // Pulisce il listener quando il componente viene smontato
+    return () => mediaQueryList.removeEventListener('change', listener);
   }, []);
 
   return isDesktop;

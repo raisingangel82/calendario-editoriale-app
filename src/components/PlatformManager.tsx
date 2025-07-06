@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../contexts/ThemeContext'; // Importato
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import { PlatformFormModal } from './PlatformFormModal';
 import { type PlatformData } from '../data/defaultPlatforms';
 
 export const PlatformManager: React.FC = () => {
   const { user } = useAuth();
+  const { getActiveColor } = useTheme(); // Usato hook del tema
   const [platforms, setPlatforms] = useState<PlatformData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,9 +26,8 @@ export const PlatformManager: React.FC = () => {
       const userPlatforms = querySnapshot.docs.map(doc => ({
         id: doc.id,
         name: doc.data().name,
-        icon: doc.data().icon, // Icona non è usata qui ma la manteniamo per coerenza
+        icon: doc.data().icon,
         baseUrl: doc.data().baseUrl,
-        // ▼▼▼ MODIFICA: Recuperiamo il nuovo campo ▼▼▼
         publishUrl: doc.data().publishUrl, 
       } as PlatformData));
       setPlatforms(userPlatforms);
@@ -76,10 +77,10 @@ export const PlatformManager: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Le tue Piattaforme Custom</h3>
-        <button onClick={handleAddNew} className="flex items-center gap-2 py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold">
+        <button onClick={handleAddNew} className={`flex items-center gap-2 py-2 px-4 text-white rounded-lg transition-colors text-sm font-semibold ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')}`}>
           <Plus size={18} /> Aggiungi
         </button>
       </div>
@@ -87,10 +88,9 @@ export const PlatformManager: React.FC = () => {
       <div className="space-y-3">
         {platforms.length > 0 ? (
           platforms.map(platform => (
-            <div key={platform.id} className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-200 dark:border-gray-700">
+            <div key={platform.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-md border border-gray-200 dark:border-gray-700">
               <div>
                 <p className="font-semibold text-gray-900 dark:text-gray-100">{platform.name}</p>
-                {/* ▼▼▼ MODIFICA: Visualizziamo anche il publishUrl se esiste ▼▼▼ */}
                 <p className="text-xs text-gray-500 dark:text-gray-400 break-all" title="URL di Pubblicazione">
                   Pubblica: {platform.publishUrl || 'Non impostato'}
                 </p>

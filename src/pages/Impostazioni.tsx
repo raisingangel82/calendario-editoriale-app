@@ -1,209 +1,154 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, DatabaseZap, BellRing, MessageSquareQuote, Palette } from 'lucide-react';
+import { BellRing, Palette, Upload, Download, Settings, SlidersHorizontal, Briefcase, Star } from 'lucide-react';
 import { PlatformManager } from '../components/PlatformManager';
 import { getMessaging, getToken } from "firebase/messaging";
 import { collection, query, where, getDocs, writeBatch, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { projectColorPalette } from '../data/colorPalette';
+import { projectColorPalette, type ColorShade } from '../data/colorPalette';
 
-export const Impostazioni: React.FC = () => {
+interface CardProps {
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const SettingsCard: React.FC<CardProps> = ({ title, icon: Icon, children, className = '' }) => (
+    <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 ${className}`}>
+        <h4 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 mb-4"><Icon size={18}/> {title}</h4>
+        {children}
+    </div>
+);
+
+interface ImpostazioniProps {
+    onImportClick: () => void;
+    onExportClick: () => void;
+    onProjectsClick: () => void;
+    workingDays: number[];
+    setWorkingDays: (days: number[]) => void;
+}
+
+const daysOfWeek = [
+    { id: 1, label: 'L' }, { id: 2, label: 'M' }, { id: 3, label: 'M' },
+    { id: 4, label: 'G' }, { id: 5, label: 'V' }, { id: 6, label: 'S' }, { id: 0, label: 'D' }
+];
+
+export const Impostazioni: React.FC<ImpostazioniProps> = ({ onImportClick, onExportClick, onProjectsClick, workingDays, setWorkingDays }) => {
   const { user } = useAuth();
-  const { baseColor, setBaseColor } = useTheme();
+  const { baseColor, setBaseColor, colorShade, setColorShade, getActiveColor } = useTheme();
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
 
-  const handleGenerateAmazonComments = async () => {
-    if (!user) {
-      alert("Devi essere loggato per eseguire lo script.");
-      return;
-    }
-    if (!window.confirm("Stai per aggiornare tutti i post senza un 'primo commento' con il link di Amazon. Questa operazione è sicura ma va eseguita UNA SOLA VOLTA. Procedere?")) {
-      return;
-    }
-    alert("Avvio dello script... Potrebbero volerci alcuni secondi. Riceverai un messaggio al termine.");
-    try {
-      const amazonLinks: { [key: string]: string } = {
-        'Sotto il cielo di nessuno': 'https://amzn.eu/d/bdwIFux',
-        'Riflessi di desiderio': 'https://amzn.eu/d/4Yafa86',
-        'Un tango a tre': 'https://amzn.eu/d/4SMVN2a',
-        "Mosaico d'amore": 'https://amzn.eu/d/eeilFGZ'
-      };
-      const progettiRef = collection(db, "progetti");
-      const qProgetti = query(progettiRef, where("userId", "==", user.uid));
-      const progettiSnapshot = await getDocs(qProgetti);
-      const projectMap = new Map<string, string>();
-      progettiSnapshot.forEach(doc => {
-        projectMap.set(doc.id, doc.data().nome);
-      });
-      const contenutiRef = collection(db, "contenuti");
-      const qContenuti = query(contenutiRef, where("userId", "==", user.uid));
-      const contenutiSnapshot = await getDocs(qContenuti);
-      const batch = writeBatch(db);
-      let updatedCount = 0;
-      contenutiSnapshot.forEach(doc => {
-        const post = doc.data();
-        if (post.projectId && !post.primoCommento) {
-          const projectName = projectMap.get(post.projectId);
-          if (projectName && amazonLinks[projectName]) {
-            const amazonUrl = amazonLinks[projectName];
-            const nuovoCommento = `Trovi il libro su Amazon ${amazonUrl}`;
-            batch.update(doc.ref, { primoCommento: nuovoCommento });
-            updatedCount++;
-          }
-        }
-      });
-      await batch.commit();
-      alert(`Script completato! ${updatedCount} post sono stati aggiornati con successo.`);
-    } catch (error) {
-      console.error("Errore durante l'aggiornamento dei commenti:", error);
-      alert("Si è verificato un errore durante l'aggiornamento. Controlla la console del browser.");
-    }
+  const handleWorkingDaysChange = (dayId: number) => {
+    const newWorkingDays = workingDays.includes(dayId)
+      ? workingDays.filter(d => d !== dayId)
+      : [...workingDays, dayId].sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b));
+    setWorkingDays(newWorkingDays);
   };
-
+  
   const handleEnableNotifications = async () => {
-    if (!user) {
-      alert("Devi essere loggato per abilitare le notifiche.");
-      return;
-    }
-    
-    // ▼▼▼ RICORDA: Incolla qui la tua VAPID key personale presa da Firebase ▼▼▼
-    const VAPID_KEY = "BCvTK43mY8OjbcH1aE-ampackLk0vsQIYgYTDXj2K0obzOGZbQL8a7GivgqDIShYbufcW1b-TwCIn-n53q531T0";
-
-    if (VAPID_KEY.includes("INCOLLA")) {
-        alert("Errore di configurazione: la VAPID key per le notifiche non è stata impostata nel codice.");
-        return;
-    }
-
+    if (!user) return;
     setIsSubscribing(true);
+    setNotificationStatus(null);
     try {
-      const messaging = getMessaging();
       const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        const currentToken = await getToken(messaging, { vapidKey: VAPID_KEY });
-        if (currentToken) {
-          const tokenRef = doc(db, "subscriptions", currentToken);
-          await setDoc(tokenRef, { userId: user.uid, token: currentToken, createdAt: new Date() });
-          alert("Notifiche abilitate con successo!");
+      if (permission === 'granted') {
+        const messaging = getMessaging();
+        const fcmToken = await getToken(messaging, { vapidKey: 'BCvTK43mY8OjbcH1aE-ampackLk0vsQIYgYTDXj2K0obzOGZbQL8a7GivgqDIShYbufcW1b-TwCIn-n53q531T0' });
+        
+        if (fcmToken) {
+          const tokenRef = doc(db, 'fcmTokens', user.uid);
+          await setDoc(tokenRef, { token: fcmToken, userId: user.uid }, { merge: true });
+          setNotificationStatus('Notifiche abilitate con successo!');
         } else {
-          alert("Errore: Impossibile ottenere il token di notifica. Assicurati che il sito sia in HTTPS.");
+          setNotificationStatus('Impossibile ottenere il token. Controlla la configurazione.');
         }
       } else {
-        alert("Hai negato il permesso per le notifiche. Puoi riabilitarle dalle impostazioni del browser.");
+        setNotificationStatus('Permesso per le notifiche non concesso.');
       }
     } catch (error) {
-      console.error("Errore durante l'abilitazione delle notifiche:", error);
-      alert("Si è verificato un errore durante l'abilitazione delle notifiche.");
+      console.error('Errore durante l\'abilitazione delle notifiche:', error);
+      setNotificationStatus('Errore durante l\'abilitazione.');
     } finally {
       setIsSubscribing(false);
     }
   };
-
-  const handleMigratePosts = async () => {
-    if (!user) {
-      alert("Devi essere loggato per eseguire la migrazione.");
-      return;
-    }
-    if (!window.confirm("Questa operazione associa i vecchi post ai nuovi progetti. Eseguire una sola volta. Procedere?")) {
-      return;
-    }
-    alert("Avvio migrazione...");
-    try {
-      const progettiRef = collection(db, "progetti");
-      const qProgetti = query(progettiRef, where("userId", "==", user.uid));
-      const progettiSnapshot = await getDocs(qProgetti);
-      const projectMap = new Map<string, string>();
-      progettiSnapshot.forEach(doc => {
-        projectMap.set(doc.data().nome, doc.id);
-      });
-      const contenutiRef = collection(db, "contenuti");
-      const qContenuti = query(contenutiRef, where("userId", "==", user.uid));
-      const contenutiSnapshot = await getDocs(qContenuti);
-      if (contenutiSnapshot.empty) {
-        alert("Nessun contenuto da migrare.");
-        return;
-      }
-      const batch = writeBatch(db);
-      let updatedCount = 0;
-      contenutiSnapshot.forEach(doc => {
-        const post = doc.data();
-        if (post.libro && !post.projectId) {
-          const projectId = projectMap.get(post.libro);
-          if (projectId) {
-            batch.update(doc.ref, { projectId: projectId });
-            updatedCount++;
-          }
-        }
-      });
-      await batch.commit();
-      alert(`Migrazione completata! ${updatedCount} post sono stati aggiornati.`);
-    } catch (error) {
-      console.error("Errore durante la migrazione:", error);
-      alert("Si è verificato un errore durante la migrazione.");
-    }
-  };
   
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-8">
+    <div className="p-4 sm:p-6">
       <div className="mb-8">
-        <Link to="/" className="flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500 transition-colors">
-          <ArrowLeft size={18} />
-          Torna al Calendario
-        </Link>
-        <h1 className="text-3xl font-bold mt-2 text-gray-800 dark:text-gray-200">
-          Impostazioni
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">Gestisci le impostazioni del tuo account e le funzionalità avanzate.</p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Utility e Impostazioni</h1>
       </div>
 
-      <div className="mt-8 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-        <h4 className="font-bold text-gray-800 dark:text-blue-200 flex items-center gap-2"><Palette size={18}/> Colore Principale del Tema</h4>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 mb-3">
-          Scegli il colore principale che verrà usato per l'interfaccia.
-        </p>
-        <div className="grid grid-cols-6 sm:grid-cols-11 gap-2 pt-2">
-            {projectColorPalette.map(c => (
-                <button
-                    key={c.base}
-                    type="button"
-                    title={c.name}
-                    onClick={() => setBaseColor(c.base)}
-                    style={{ backgroundColor: c.shades['700'].hex }}
-                    className={`w-8 h-8 rounded-full transition-transform hover:scale-110 ${baseColor === c.base ? `ring-2 ring-offset-2 ring-offset-gray-100 dark:ring-offset-gray-800 ring-blue-500` : ''}`}
-                />
-            ))}
-        </div>
-      </div>
-      
-      <div className="mt-8 p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg border border-blue-300 dark:border-blue-800">
-        <h4 className="font-bold text-blue-800 dark:text-blue-200">Notifiche Push</h4>
-        <p className="text-sm text-blue-700 dark:text-blue-300 mt-1 mb-3">
-          Abilita le notifiche per ricevere un promemoria quando è ora di pubblicare un post.
-        </p>
-        <button onClick={handleEnableNotifications} disabled={isSubscribing} className="flex items-center gap-2 py-2 px-4 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors disabled:bg-blue-400 disabled:cursor-wait">
-          <BellRing size={18} />
-          {isSubscribing ? 'Abilitazione...' : 'Abilita Notifiche'}
-        </button>
-      </div>
-
-      <div className="my-8">
-        <PlatformManager />
-      </div>
-
-      <div className="mt-8 p-4 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg border border-yellow-300 dark:border-yellow-800">
-        <h4 className="font-bold text-yellow-800 dark:text-yellow-200">Strumenti di Manutenzione</h4>
-        <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1 mb-3">Usa questi pulsanti per operazioni una tantum sui tuoi dati.</p>
-        <div className="flex flex-wrap gap-3">
-            <button onClick={handleMigratePosts} className="flex items-center gap-2 py-2 px-4 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 transition-colors">
-                <DatabaseZap size={18} />
-                Esegui Migrazione Dati Post
-            </button>
-            <button onClick={handleGenerateAmazonComments} className="flex items-center gap-2 py-2 px-4 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors">
-                <MessageSquareQuote size={18} />
-                Genera Commenti Amazon
-            </button>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <SettingsCard title="Tema e Impostazioni" icon={Palette}>
+            <div className="flex flex-col gap-4">
+                <div>
+                  <div className="grid grid-cols-8 sm:grid-cols-10 gap-2">
+                      {projectColorPalette.map(c => (<button key={c.base} type="button" title={c.name} onClick={() => setBaseColor(c.base)} style={{ backgroundColor: c.shades['700'].hex }} className={`w-8 h-8 rounded-full transition-transform hover:scale-110 ${baseColor === c.base ? `ring-2 ring-offset-2 ring-offset-white dark:ring-offset-gray-800 ring-indigo-500` : ''}`} /> ))}
+                  </div>
+                  <h5 className="font-semibold text-gray-700 dark:text-gray-300 mt-4 mb-2 text-sm">Intensità Colori</h5>
+                  <div className="flex justify-around bg-gray-100 dark:bg-gray-900/50 p-1 rounded-md">
+                      {/* FIX: Aggiunto colore testo per dark mode */}
+                      {(['400', '700', '800'] as ColorShade[]).map(shade => ( <button key={shade} onClick={() => setColorShade(shade)} className={`w-full text-xs py-1 px-2 rounded-md transition-colors ${colorShade === shade ? `${getActiveColor('bg')} text-white font-semibold` : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}> {shade === '400' ? 'Chiara' : shade === '700' ? 'Media' : 'Intensa'} </button>))}
+                  </div>
+                </div>
+                <hr className="border-gray-200 dark:border-gray-700" />
+                <div>
+                  <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Giorni Lavorativi</h5>
+                  <div className="flex flex-wrap gap-2">
+                    {/* FIX: Aggiunto colore testo per dark mode */}
+                    {daysOfWeek.map(day => (
+                        <button key={day.id} onClick={() => handleWorkingDaysChange(day.id)} className={`w-10 h-10 rounded-lg font-bold text-sm transition-colors ${workingDays.includes(day.id) ? `${getActiveColor('bg')} text-white` : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>
+                            {day.label}
+                        </button>
+                    ))}
+                  </div>
+                </div>
+                <hr className="border-gray-200 dark:border-gray-700" />
+                <div>
+                  <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Operazioni</h5>
+                  <div className="flex items-center justify-around gap-2">
+                      <button onClick={onProjectsClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
+                          <Settings size={16} />
+                          <span className="hidden sm:inline">Progetti</span>
+                      </button>
+                      <button onClick={onImportClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
+                          <Upload size={16} />
+                          <span className="hidden sm:inline">Importa</span>
+                      </button>
+                      <button 
+                        onClick={onExportClick} 
+                        disabled={user?.plan !== 'pro'}
+                        title={user?.plan !== 'pro' ? "Funzionalità disponibile per gli account Pro" : "Esporta l'intero database"}
+                        className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
+                      >
+                          <Download size={16} />
+                          <span className="hidden sm:inline">Esporta</span>
+                          {/* FIX: Migliorato contrasto badge in dark mode */}
+                          {user?.plan !== 'pro' && (
+                            <span className="ml-1.5 flex items-center gap-1 text-xs font-bold bg-yellow-400 dark:bg-yellow-500 text-yellow-900 px-1.5 py-0.5 rounded-full">
+                                <Star size={12}/>
+                                PRO
+                            </span>
+                          )}
+                      </button>
+                  </div>
+                </div>
+                <hr className="border-gray-200 dark:border-gray-700" />
+                 <div>
+                    <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Notifiche Push</h5>
+                    <button onClick={handleEnableNotifications} disabled={isSubscribing} className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-50">
+                        <BellRing size={18} />
+                        {isSubscribing ? 'Abilitazione...' : 'Abilita Notifiche Browser'}
+                    </button>
+                    {notificationStatus && <p className="text-xs text-center mt-2 text-gray-500 dark:text-gray-400">{notificationStatus}</p>}
+                </div>
+              </div>
+          </SettingsCard>
+          <PlatformManager />
       </div>
     </div>
   );

@@ -1,16 +1,22 @@
+// src/components/ScrollToTop.tsx
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 export const ScrollToTop = () => {
-  // Estrae il "pathname" (es. "/", "/impostazioni") dall'URL corrente
   const { pathname } = useLocation();
 
-  // Questo "effetto" si attiva ogni volta che il pathname cambia
   useEffect(() => {
-    // Riporta la finestra del browser in cima (posizione 0, 0)
-    window.scrollTo(0, 0);
-  }, [pathname]); // La dipendenza [pathname] assicura che venga eseguito al cambio di rotta
+    // Esclude la homepage (il calendario) da questo scroll-to-top generico,
+    // poiché ha la sua logica di scroll personalizzata.
+    if (pathname === '/') return;
 
-  // Questo componente non renderizza nulla di visibile
+    const scrollContainer = document.getElementById('main-scroll-container');
+    if (scrollContainer) {
+      scrollContainer.scrollTo(0, 0);
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [pathname]);
+
   return null;
 };

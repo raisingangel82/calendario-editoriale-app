@@ -1,184 +1,115 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../firebase';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DndContext, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, writeBatch, getDocs } from 'firebase/firestore';
-import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, setHours, isSameWeek } from 'date-fns';
+import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, setHours, getDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { ContenutoCard } from './ContenutoCard';
-import { ContenutoModal } from './ContenutoModal';
-import { Stats } from './Stats';
-import { useBreakpoint } from '../hooks/useBreakpoint';
-import { FilteredListView } from './FilteredListView';
-import { ImportModal } from './ImportModal';
-import { ProjectManagerModal } from './ProjectManagerModal';
-import type { Post, Progetto, Categoria } from '../types';
+import type { Post, Progetto } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, children }) => {
     const { setNodeRef, isOver } = useDroppable({ id });
-    const bgColor = isOver ? 'bg-red-50 dark:bg-red-900/40' : '';
+    const bgColor = isOver ? 'bg-indigo-50 dark:bg-indigo-900/40' : '';
     return (<div ref={setNodeRef} className={`p-2 h-full w-full transition-colors rounded-lg ${bgColor} min-h-[10rem]`}><div className="space-y-2">{children}</div></div>);
 }
 
-const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
-    const tipoLower = (tipoContenuto || "").toLowerCase();
-    if (tipoLower.includes('testo')) return 'Testo';
-    if (['reel', 'video', 'booktrailer', 'vlog', 'montaggio', 'documentario', 'podcast'].some(term => tipoLower.includes(term))) { return 'Video'; }
-    if (['immagine', 'post statico', 'carousel', 'carosello'].some(term => tipoLower.includes(term))) { return 'Immagine'; }
-    return 'Testo';
-};
+interface CalendarioProps {
+    posts: Post[];
+    progetti: Progetto[];
+    workingDays: number[];
+    onCardClick: (post: Post) => void;
+    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
+}
 
-export const Calendario: React.FC = () => {
-    const { user, loading: userLoading } = useAuth();
-    const { getActiveColor } = useTheme(); 
-    const oggi = startOfDay(new Date());
-    const [posts, setPosts] = useState<Post[]>([]);
-    const [progetti, setProgetti] = useState<Progetto[]>([]);
-    const [allWeeks, setAllWeeks] = useState<Date[][]>([]);
-    const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-    const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
-    const [filterCategory, setFilterCategory] = useState<Categoria | null>(null);
-    const [visibleWeeksCount, setVisibleWeeksCount] = useState(4);
-    const loadMoreRef = useRef<HTMLDivElement>(null);
+export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, workingDays = [1, 2, 3, 4, 5], onCardClick, onStatusChange }) => {
+    const { getActiveColor } = useTheme();
     const isDesktop = useBreakpoint();
-    const dataInizio = new Date('2025-07-04');
-    
-    const [mainHeaderHeight, setMainHeaderHeight] = useState(0);
+    const oggi = useMemo(() => startOfDay(new Date()), []);
+    const [weeks, setWeeks] = useState<Date[][]>([]);
 
     useEffect(() => {
-        const header = document.querySelector('header');
-        if (header) {
-            setMainHeaderHeight(header.offsetHeight);
-        }
-    }, []);
-
-    const PERPETUAL_SCROLL_ENABLED = user?.plan === 'pro';
-    const totalWeeksToShow = PERPETUAL_SCROLL_ENABLED ? 100 : 8;
-
-    useEffect(() => {
-        const weekArray: Date[][] = [];
-        for (let i = 0; i < totalWeeksToShow; i++) {
-            const settimanaInizio = addWeeks(startOfWeek(dataInizio, { weekStartsOn: 1 }), i);
-            const giorniDellaSettimana: Date[] = [];
-            for (let j = 0; j < 5; j++) { giorniDellaSettimana.push(addDays(settimanaInizio, j)); }
-            weekArray.push(giorniDellaSettimana);
-        }
-        setAllWeeks(weekArray);
-    }, [PERPETUAL_SCROLL_ENABLED, totalWeeksToShow]);
+        const dataInizioCalendario = startOfWeek(addDays(oggi, -21), { weekStartsOn: 1 });
+        // ▼▼▼ MODIFICA: Rimosso il filtro che forzava la visualizzazione di 'oggi' ▼▼▼
+        const weekArray = Array.from({ length: 12 }, (_, i) => {
+            const settimanaInizio = addWeeks(dataInizioCalendario, i);
+            return Array.from({ length: 7 }, (_, j) => addDays(settimanaInizio, j))
+                .filter(day => workingDays.includes(getDay(day)));
+        });
+        setWeeks(weekArray.filter(week => week.length > 0));
+    }, [workingDays, oggi]);
 
     useEffect(() => {
-        if (!user) return;
-        const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
-        const unsubPosts = onSnapshot(qPosts, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[]); });
+        const scrollTimer = setTimeout(() => {
+            const scrollContainer = document.getElementById('main-scroll-container');
+            if (!scrollContainer || weeks.length === 0) return;
 
-        const qProgetti = query(collection(db, "progetti"), where("userId", "==", user.uid));
-        const unsubProgetti = onSnapshot(qProgetti, (snapshot) => { setProgetti(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Progetto[]); });
-        
-        return () => { unsubPosts(); unsubProgetti(); };
-    }, [user]);
-    
-    useEffect(() => {
-        if (posts.length > 0 && viewMode === 'calendar' && mainHeaderHeight > 0) {
-            setTimeout(() => {
-                const statsHeader = document.getElementById('stats-header');
-                const statsHeaderHeight = statsHeader ? statsHeader.offsetHeight : 0;
-                const totalHeaderHeight = mainHeaderHeight + statsHeaderHeight;
+            // ▼▼▼ NUOVA LOGICA DI SCROLL CORRETTA ▼▼▼
+            let targetDay;
+            const isTodayWorkingDay = workingDays.includes(getDay(oggi));
 
-                let targetElement: HTMLElement | null = null;
-        
-                if (isDesktop) {
-                    targetElement = document.getElementById('current-week-desktop');
+            if (isTodayWorkingDay) {
+                // Se oggi è un giorno lavorativo, punta a oggi.
+                targetDay = oggi;
+            } else {
+                // Altrimenti, calcola il prossimo giorno lavorativo.
+                let nextDay = addDays(oggi, 1);
+                while (!workingDays.includes(getDay(nextDay))) {
+                    nextDay = addDays(nextDay, 1);
+                }
+                targetDay = nextDay;
+            }
+            // ▲▲▲ FINE NUOVA LOGICA ▲▲▲
+
+            let targetId;
+            if (isDesktop) {
+                const targetWeek = weeks.find(week => 
+                    week.some(day => isEqual(startOfDay(day), startOfDay(targetDay)))
+                );
+                if (targetWeek && targetWeek.length > 0) {
+                    targetId = `week-${format(targetWeek[0], 'yyyy-ww')}`;
                 } else {
-                    targetElement = document.getElementById('today-mobile');
+                    targetId = `week-${format(targetDay, 'yyyy-ww')}`;
                 }
-        
-                if (targetElement) {
-                    const elementPosition = targetElement.getBoundingClientRect().top;
-                    const offsetPosition = elementPosition + window.pageYOffset - totalHeaderHeight;
-          
-                    window.scrollTo({
-                        top: offsetPosition,
-                        behavior: 'smooth'
-                    });
-                }
-            }, 100);
-        }
-    }, [posts, viewMode, isDesktop, mainHeaderHeight]);
+            } else {
+                targetId = `day-${format(targetDay, 'yyyy-MM-dd')}`;
+            }
+                
+            const targetElement = document.getElementById(targetId);
+            if (targetElement) {
+                const headerOffset = document.querySelector('header')?.offsetHeight || 0;
+                const topPosition = targetElement.offsetTop - headerOffset;
+                scrollContainer.scrollTo({ top: Math.max(0, topPosition), behavior: 'auto' });
+            }
+        }, 100);
+        return () => clearTimeout(scrollTimer);
+    }, [isDesktop, weeks, oggi, workingDays]);
 
-    useEffect(() => {
-        if (viewMode !== 'calendar' || !PERPETUAL_SCROLL_ENABLED || visibleWeeksCount >= allWeeks.length) return;
-        const observer = new IntersectionObserver(
-          (entries) => { if (entries[0].isIntersecting) { setVisibleWeeksCount(prevCount => Math.min(prevCount + 4, allWeeks.length)); } },
-          { rootMargin: "500px", threshold: 0.1 }
-        );
-        const currentRef = loadMoreRef.current;
-        if (currentRef) { observer.observe(currentRef); }
-        return () => { if (currentRef) { observer.unobserve(currentRef); } };
-    }, [viewMode, allWeeks.length, visibleWeeksCount, PERPETUAL_SCROLL_ENABLED]);
-    
-    const handleAddPost = async (dataToSave: Omit<Post, 'id' | 'userId'>) => { if (user?.plan === 'free' && progetti.length >= 1) { const progettoEsistente = progetti.find(p => p.id === dataToSave.projectId); if (!progettoEsistente) { alert("Il piano gratuito consente di gestire un solo progetto. Passa a Pro per aggiungerne altri."); return; } } if (!user) return; const docData = { ...dataToSave, userId: user.uid, data: Timestamp.fromDate(dataToSave.data as Date) }; await addDoc(collection(db, 'contenuti'), docData); setIsAddModalOpen(false); };
-    const handleSavePost = async (updatedFields: any) => { if (!selectedPost) return; const docRef = doc(db, 'contenuti', selectedPost.id); const dataToUpdate = { ...updatedFields, data: Timestamp.fromDate(updatedFields.data as Date) }; await updateDoc(docRef, dataToUpdate); setSelectedPost(null); };
-    const handleDeletePost = async (postId: string) => { const docRef = doc(db, 'contenuti', postId); await deleteDoc(docRef); setSelectedPost(null); };
-    const handleDeleteProject = async (projectId: string) => { const docRef = doc(db, 'progetti', projectId); await deleteDoc(docRef); };
-    const handleUpdateProject = async (projectId: string, updatedData: { nome: string; sintesi: string; immagineUrl: string; color: string; }) => { const projectRef = doc(db, "progetti", projectId); await updateDoc(projectRef, updatedData); };
-    const handleStatusChange = async (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => { const postRef = doc(db, 'contenuti', postId); if (field === 'statoPubblicato' && value === true) { await updateDoc(postRef, { statoProdotto: true, statoPubblicato: true }); } else if (field === 'statoProdotto' && value === false) { await updateDoc(postRef, { statoProdotto: false, statoPubblicato: false });} else { await updateDoc(postRef, { [field]: value }); } };
-    const handleExport = () => { if (user?.plan !== 'pro') { alert("L'esportazione è una funzionalità Pro."); return; } const dataToExport = posts.map(({ id, userId, ...rest }) => ({...rest, data: rest.data ? rest.data.toDate().toISOString() : null })); const dataStr = JSON.stringify(dataToExport, null, 2); const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr); const exportFileDefaultName = `calendario_editoriale_${new Date().toISOString().slice(0,10)}.json`; const linkElement = document.createElement('a'); linkElement.setAttribute('href', dataUri); linkElement.setAttribute('download', exportFileDefaultName); linkElement.click(); };
-    const handleDuplicatePost = async (postToDuplicate: Post) => { if (user?.plan !== 'pro') { alert("La duplicazione è una funzionalità Pro."); return; } if (!user) return; const { id, userId, projectId, ...oldData } = postToDuplicate; const docData = { ...oldData, projectId, statoProdotto: false, statoPubblicato: false, userId: user.uid, }; await addDoc(collection(db, 'contenuti'), docData); handleCloseModal(); };
-    const handleCardClick = (post: Post) => { setSelectedPost(post); };
-    const handleCloseModal = () => { setSelectedPost(null); setIsAddModalOpen(false); setIsImportModalOpen(false); setIsProjectModalOpen(false); };
-    const handleDragEnd = async (event: DragEndEvent) => { const { active, over } = event; if (!over) return; const postId = active.id as string; const dropZoneId = over.id as string; const nuovoGiorno = new Date(dropZoneId); const nuovaData = setHours(nuovoGiorno, 9); const docRef = doc(db, 'contenuti', postId); await updateDoc(docRef, { data: Timestamp.fromDate(nuovaData) }); };
-    const handleFilterClick = (categoria: Categoria) => { setViewMode('list'); setFilterCategory(categoria); };
-    const handleShowCalendar = () => { setViewMode('calendar'); setFilterCategory(null); };
-    const handleImport = async (importedPosts: any[], mode: 'add' | 'overwrite') => { if (user?.plan !== 'pro') { alert("L'importazione di file è una funzionalità Pro."); return; } if (!user) return; if (!window.confirm(`Stai per ${mode === 'overwrite' ? 'SOVRASCRIVERE TUTTI I POST ESISTENTI' : 'importare ' + importedPosts.length + ' nuovi post'}. Sei assolutamente sicuro?`)) return; try { if (mode === 'overwrite') { const deleteBatch = writeBatch(db); const q = query(collection(db, "contenuti"), where("userId", "==", user.uid)); const snapshot = await getDocs(q); snapshot.forEach(doc => deleteBatch.delete(doc.ref)); await deleteBatch.commit(); } const importBatch = writeBatch(db); let importedCount = 0; importedPosts.forEach(post => { if (post.projectId && post.piattaforma && post.data && post.tipoContenuto && post.descrizione) { const newPostRef = doc(collection(db, "contenuti")); importBatch.set(newPostRef, { ...post, userId: user.uid, data: Timestamp.fromDate(new Date(post.data)), statoProdotto: post.statoProdotto || false, statoPubblicato: post.statoPubblicato || false, urlMedia: post.urlMedia || '' }); importedCount++; } }); await importBatch.commit(); alert(`${importedCount} post importati con successo!`); setIsImportModalOpen(false); } catch (error) { console.error("Errore importazione:", error); alert(`Errore durante l'importazione.`); } };
-    const handleAddProject = async (newProjectData: { nome: string; sintesi: string; immagineUrl: string; color: string; }) => { if (user?.plan === 'free' && progetti.length >= 1) { alert("Il piano gratuito consente di gestire un solo progetto. Passa a Pro per aggiungerne altri."); return; } if (!user) return; await addDoc(collection(db, 'progetti'), { ...newProjectData, userId: user.uid, }); };
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) await updateDoc(doc(db, 'contenuti', active.id as string), { data: Timestamp.fromDate(setHours(new Date(over.id as string), 9)) });
+    };
 
-    if (userLoading || !user) {
-        return <div className="text-center p-10">Caricamento calendario...</div>;
+    if (isDesktop) {
+        return ( <div className="p-6"> <DndContext onDragEnd={handleDragEnd}> <div className="space-y-8"> {weeks.map((settimana, index) => { 
+            if (settimana.length === 0) return null;
+            const gridColsClass = settimana.length === 7
+                ? 'grid-cols-[repeat(7,minmax(0,1fr))]'
+                : `grid-cols-${settimana.length}`;
+
+            return ( <div key={index} id={`week-${format(settimana[0], 'yyyy-ww')}`}> <h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">{format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[settimana.length - 1], 'dd MMM', { locale: it })}</h3> <div className="border-l border-t border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800"> <div className={`grid ${gridColsClass}`}>{settimana.map(giorno => {
+                const isToday = isEqual(startOfDay(giorno), oggi);
+                const headerClass = isToday ? `${getActiveColor('bg')} text-white font-bold` : 'bg-white dark:bg-gray-800';
+                
+                return ( <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 ${headerClass}`}>
+                    <h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-white' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee', {locale: it})}</h4>
+                    <p className={`text-2xl font-light ${isToday ? 'text-white' : 'text-gray-800 dark:text-gray-300'}`}>{format(giorno, 'dd')}</p>
+                </div> );
+            })}</div> <div className={`grid ${gridColsClass}`}>{settimana.map(giorno => { const dropZoneId = giorno.toISOString(); const contenuti = posts.filter(p => p.data && isEqual(startOfDay((p.data as Timestamp).toDate()), startOfDay(giorno))).sort((a,b) => (a.data as Timestamp).toMillis() - (b.data as Timestamp).toMillis()); return ( <div key={dropZoneId} className="w-full border-r border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"><DropZone id={dropZoneId}>{contenuti.map(post => { const progetto = progetti.find(p => p.id === post.projectId); return ( <ContenutoCard key={post.id} post={post} onCardClick={onCardClick} onStatusChange={onStatusChange} isDraggable={true} projectColor={progetto?.color} nomeProgetto={progetto?.nome} /> ); })}</DropZone></div> ); })}</div> </div> </div> )
+        })} </div> </DndContext> </div> );
     }
-    
-    const postsDaCreareFiltrati = posts.filter(p => !p.statoProdotto && filterCategory && getCategoriaGenerica(p.tipoContenuto) === filterCategory).sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0));
-    const weeksToDisplay = allWeeks.slice(0, visibleWeeksCount);
-    
-    const DesktopView = () => ( <div className="space-y-8">{weeksToDisplay.map((settimana, index) => { const isCurrentWeek = isSameWeek(oggi, settimana[0], { weekStartsOn: 1 }); return ( <div key={index} id={isCurrentWeek ? 'current-week-desktop' : `week-${index}`}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}<span className="text-sm font-light text-gray-400 dark:text-gray-500 ml-3">({format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[4], 'dd MMM', { locale: it })})</span></h3><div className="border-l border-t border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden"><div className="grid grid-cols-5">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? `${getActiveColor('bg')} text-white font-bold rounded-t-lg` : 'bg-gray-100 dark:bg-gray-800/50'; return ( <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 transition-colors ${headerClass}`}><h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-white' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee')}</h4><p className={`text-2xl font-light ${isToday ? 'text-white' : 'text-gray-400 dark:text-gray-500'}`}>{format(giorno, 'dd')}</p></div> );})}</div><div className="grid grid-cols-5">{settimana.map(giorno => { const dropZoneId = giorno.toISOString(); const contenutiDelGiorno = posts .filter(p => p.data && isEqual(startOfDay(p.data.toDate()), startOfDay(giorno))) .sort((a, b) => (a.data?.toDate().getTime() || 0) - (b.data?.toDate().getTime() || 0)); return ( <div key={dropZoneId} className="w-full border-r border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/20"><DropZone id={dropZoneId}>{contenutiDelGiorno.map((post) => { const progettoDelPost = progetti.find(p => p.id === post.projectId); const cardColor = progettoDelPost?.color || '#9ca3af'; return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={true} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} /> ); })}</DropZone></div> ); })}</div></div></div> ) })}</div> );
-    const MobileView = () => ( <div className="space-y-6">{weeksToDisplay.map((settimana, index) => (<div key={index}><h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">Settimana {index + 1}</h3><div className="space-y-4">{settimana.map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const headerClass = isToday ? `${getActiveColor('bg')} text-white` : 'bg-gray-100 dark:bg-gray-800'; const contenutiDelGiorno = posts.filter(post => post.data && isEqual(startOfDay(post.data.toDate()), startOfDay(giorno))).sort((a, b) => a.data!.toDate().getTime() - b.data!.toDate().getTime()); return ( <div key={giorno.toISOString()} id={isToday ? 'today-mobile' : undefined} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"><h4 className={`font-bold text-sm p-3 border-b border-gray-200 dark:border-gray-700 capitalize transition-colors ${headerClass}`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4><div className="space-y-3 p-3 bg-white dark:bg-gray-800/50 rounded-b-lg min-h-[3rem]">{contenutiDelGiorno.length > 0 ? ( contenutiDelGiorno.map((post) => { const progettoDelPost = progetti.find(p => p.id === post.projectId); const cardColor = progettoDelPost?.color || '#9ca3af'; return ( <ContenutoCard key={post.id} post={post} onCardClick={handleCardClick} onStatusChange={handleStatusChange} isDraggable={false} projectColor={cardColor} nomeProgetto={progettoDelPost?.nome} isMobileView={true} /> ); }) ) : ( <div className="h-10"></div> )}</div></div> );})}</div></div>))}</div> );
-    
-    return (
-        <div>
-            <div 
-                id="stats-header" 
-                className="sticky z-20 bg-gray-100 dark:bg-gray-900 pb-4"
-                style={{ top: `${mainHeaderHeight}px` }}
-            >
-                <div className="mt-6">
-                    <Stats 
-                        posts={posts} 
-                        progetti={progetti} 
-                        onFilterClick={handleFilterClick}
-                        onNewPostClick={() => setIsAddModalOpen(true)}
-                        onImportClick={() => setIsImportModalOpen(true)}
-                        onExportClick={handleExport}
-                        onProjectsClick={() => setIsProjectModalOpen(true)}
-                    />
-                </div>
-            </div>
-            
-            <div className="mt-6">
-                {/* ▼▼▼ MODIFICA: Corretto il tag di chiusura ▼▼▼ */}
-                <DndContext onDragEnd={handleDragEnd}>
-                    {viewMode === 'calendar' ? ( isDesktop ? <DesktopView /> : <MobileView />) : ( <FilteredListView posts={postsDaCreareFiltrati} progetti={progetti} filterCategory={filterCategory as Categoria} onBack={handleShowCalendar} onPostClick={handleCardClick} onStatusChange={handleStatusChange}/> )}
-                </DndContext>
 
-                {viewMode === 'calendar' && (PERPETUAL_SCROLL_ENABLED ? visibleWeeksCount < allWeeks.length : false) && (<div ref={loadMoreRef} className="h-20 flex items-center justify-center text-gray-400"><p>Caricamento...</p></div>)}
-            </div>
-            
-            {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModal} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
-            {isImportModalOpen && (<ImportModal onClose={handleCloseModal} onImport={handleImport} />)}
-            {isProjectModalOpen && ( <ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} /> )}
-        </div>
-    );
+    return ( <div className="space-y-4 p-4"> {weeks.flat().map(giorno => { const isToday = isEqual(startOfDay(giorno), oggi); const dayId = `day-${format(giorno, 'yyyy-MM-dd')}`; const headerClass = isToday ? `${getActiveColor('bg')} text-white` : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'; const contenuti = posts.filter(p => p.data && isEqual(startOfDay((p.data as Timestamp).toDate()), startOfDay(giorno))).sort((a,b) => (a.data as Timestamp).toMillis() - (b.data as Timestamp).toMillis()); return ( <div key={giorno.toISOString()} id={dayId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"> <h4 className={`font-bold text-sm p-3 border-b border-gray-200 dark:border-gray-700 capitalize transition-colors ${headerClass}`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4> <div className="space-y-3 p-3 bg-gray-50 dark:bg-gray-800/50 min-h-[3rem]">{contenuti.length > 0 ? (contenuti.map(post => { const progetto = progetti.find(p => p.id === post.projectId); return (<ContenutoCard key={post.id} post={post} onCardClick={onCardClick} onStatusChange={onStatusChange} isDraggable={false} projectColor={progetto?.color} nomeProgetto={progetto?.nome} isMobileView={true} />); })) : <div className="h-10 text-center text-gray-400 text-xs pt-2">Nessun post</div>}</div> </div> ); })} </div> );
 };
