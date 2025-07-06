@@ -76,7 +76,6 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     }
   }, [user]);
 
-  // BUG FIX: Ripristinate le funzioni per la gestione degli eventi
   const handleCopy = (textToCopy: string, type: 'desc' | 'comment') => {
     if (!textToCopy) return;
     navigator.clipboard.writeText(textToCopy).then(() => {
@@ -144,9 +143,9 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
         {swiper?.activeIndex > 0 && <button onClick={() => slideTo(swiper.activeIndex - 1)} className="px-6 py-3 text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors flex items-center gap-2"> <ArrowLeft size={18} /> Indietro</button>}
         
         {swiper?.activeIndex < 2 ? 
-          <button onClick={() => slideTo(swiper.activeIndex + 1)} className={`flex-1 px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')}`}>Avanti <ArrowRight size={18} className="inline"/></button>
+          <button onClick={() => slideTo(swiper.activeIndex + 1)} className={`flex-1 px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90`}>Avanti <ArrowRight size={18} className="inline"/></button>
           :
-          <button onClick={handleSaveChanges} className={`flex-1 px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')}`}>{isEditMode ? <Save size={18} className="inline mr-2"/> : <Plus size={18} className="inline mr-2"/>}{isEditMode ? 'Salva' : 'Crea'}</button>
+          <button onClick={handleSaveChanges} className={`flex-1 px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90`}>{isEditMode ? <Save size={18} className="inline mr-2"/> : <Plus size={18} className="inline mr-2"/>}{isEditMode ? 'Salva' : 'Crea'}</button>
         }
       </div>
     </div>

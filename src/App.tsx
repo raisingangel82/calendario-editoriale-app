@@ -1,13 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { db, auth } from './firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, getDocs, setDoc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { Plus, Download, X } from 'lucide-react';
+import { Plus, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
-import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useBreakpoint } from './hooks/useBreakpoint';
 
@@ -25,7 +25,7 @@ import { Auth } from './components/Auth';
 import { ContenutoModal } from './components/ContenutoModal';
 import { ImportModal } from './components/ImportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
-import { ExportModal } from './components/ExportModal'; // Importato il nuovo modale
+import { ExportModal } from './components/ExportModal';
 
 import type { Post, Progetto, Categoria } from './types';
 
@@ -77,7 +77,6 @@ function MainLayout() {
     const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
     const unsubPosts = onSnapshot(qPosts, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[]); setLoadingData(false); });
     const qProgetti = query(collection(db, "progetti"), where("userId", "==", user.uid));
-    // BUG FIX: La type assertion `as Progetto[]` è stata spostata all'interno della chiamata a `setProgetti`.
     const unsubProgetti = onSnapshot(qProgetti, (snapshot) => setProgetti(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Progetto[]));
     return () => { unsubPosts(); unsubProgetti(); };
   }, [user]);
@@ -142,7 +141,7 @@ function MainLayout() {
     link.remove();
   };
 
-  const handleImport = async (imported: any[], mode: 'add'|'overwrite') => { /* ... */ };
+  const handleImport = async () => { /* ... */ };
   const handleAddProject = async (data: any) => { if(user) await addDoc(collection(db, 'progetti'), { ...data, userId: user.uid }); };
   const handleUpdateProject = async (id: string, data: any) => await updateDoc(doc(db, "progetti", id), data);
   const handleDeleteProject = async (id: string) => await deleteDoc(doc(db, 'progetti', id));

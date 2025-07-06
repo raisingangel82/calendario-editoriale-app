@@ -32,8 +32,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({ actionConfig }) => {
               <button 
                 onClick={item.action} 
                 aria-label={item.label} 
-                // MODIFICA: Allineata la classe del bordo per il dark mode
-                className={`flex items-center justify-center text-white rounded-full w-16 h-16 -mt-8 border-4 border-white dark:border-gray-900 shadow-lg transition-all ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')} disabled:bg-gray-400`}
+                className={`flex items-center justify-center text-white rounded-full w-16 h-16 -mt-8 border-4 border-white dark:border-gray-900 shadow-lg transition-all ${getActiveColor('bg')} hover:opacity-90 disabled:bg-gray-400`}
                 disabled={item.label === 'Nessuna Azione'}
               >
                 <item.icon size={32} />

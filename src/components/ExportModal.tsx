@@ -35,11 +35,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, onExp
             <div className="swiper-pagination-container flex items-center gap-2 !w-auto" />
             
             {swiper?.activeIndex === 0 ? (
-                <button onClick={() => slideTo(1)} className={`flex-grow px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')}`}>
+                <button onClick={() => slideTo(1)} className={`flex-grow px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90`}>
                     Avanti <ArrowRight size={18} className="inline"/>
                 </button>
             ) : (
-                <button onClick={handleExportClick} className={`flex-grow px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')}`}>
+                <button onClick={handleExportClick} className={`flex-grow px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90`}>
                     <Download size={20} className="inline-block mr-2"/> Esporta Ora
                 </button>
             )}
