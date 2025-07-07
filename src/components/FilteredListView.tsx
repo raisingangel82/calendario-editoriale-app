@@ -3,7 +3,7 @@ import type { Post, Progetto, Categoria } from '../types';
 import { ContenutoCard } from './ContenutoCard';
 import { Timestamp } from 'firebase/firestore';
 import { useTheme } from '../contexts/ThemeContext';
-import { projectColorPalette, getColor } from '../data/colorPalette';
+import { projectColorPalette } from '../data/colorPalette';
 
 interface FilteredListViewProps {
     posts: Post[];
@@ -35,10 +35,10 @@ const FilterPill: React.FC<{
     isActive: boolean;
     onClick: () => void;
     colorClass?: string;
-    textColorClass?: string;
-}> = ({ label, isActive, onClick, colorClass = '', textColorClass = 'text-white' }) => {
+}> = ({ label, isActive, onClick, colorClass = '' }) => {
     const { getActiveColor } = useTheme();
-    const activeClasses = colorClass ? `${colorClass} ${textColorClass} font-bold` : `${getActiveColor('bg')} text-white font-bold`;
+    // *** CORREZIONE: Forzato il testo a bianco per i pulsanti attivi colorati ***
+    const activeClasses = colorClass ? `${colorClass} text-white font-bold` : `${getActiveColor('bg')} text-white font-bold`;
     const inactiveClasses = 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600';
     
     return (
@@ -52,22 +52,18 @@ const FilterPill: React.FC<{
 };
 
 export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, progetti, onPostClick, onStatusChange }) => {
-    // STATO UNICO per gestire il filtro attivo
     const [activeFilter, setActiveFilter] = useState<{ type: 'category' | 'project', value: string }>({ type: 'category', value: 'all' });
 
     const filteredAndSortedPosts = useMemo(() => {
         return posts
             .filter(post => {
-                if (post.statoProdotto) return false; // Escludi sempre i post già prodotti
-                
+                if (post.statoProdotto) return false;
                 if (activeFilter.type === 'category') {
                     return activeFilter.value === 'all' || getCategoriaGenerica(post.tipoContenuto) === activeFilter.value;
                 }
-                
                 if (activeFilter.type === 'project') {
                     return activeFilter.value === 'all' || post.projectId === activeFilter.value;
                 }
-
                 return true;
             })
             .slice()
@@ -89,10 +85,9 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">
                     Contenuti da Creare
                 </h1>
-                {/* Contenitore per i filtri con scroll orizzontale */}
                 <div className="flex flex-col gap-4">
-                    {/* Filtri per Categoria */}
-                    <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 custom-scrollbar">
+                    {/* *** CORREZIONE: Aggiunto flex-wrap per andare a capo su mobile *** */}
+                    <div className="flex flex-wrap items-center gap-2">
                         {categoryFilterOptions.map(option => (
                             <FilterPill 
                                 key={`cat-${option}`}
@@ -102,8 +97,7 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                             />
                         ))}
                     </div>
-                    {/* Filtri per Progetto */}
-                    <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 custom-scrollbar border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 dark:border-gray-700 pt-4">
                         <FilterPill
                             key="proj-all"
                             label="Tutti i Progetti"
@@ -113,7 +107,6 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                         {progetti.map(proj => {
                             const colorInfo = projectColorPalette.find(p => p.base === proj.color);
                             const bgColor = colorInfo?.shades['700'].bgClass || 'bg-gray-500';
-                            const textColor = colorInfo?.shades['700'].textClass || 'text-white';
 
                             return (
                                 <FilterPill 
@@ -122,7 +115,6 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                                     isActive={activeFilter.type === 'project' && activeFilter.value === proj.id}
                                     onClick={() => setActiveFilter({ type: 'project', value: proj.id })}
                                     colorClass={bgColor}
-                                    textColorClass={textColor}
                                 />
                             );
                         })}
