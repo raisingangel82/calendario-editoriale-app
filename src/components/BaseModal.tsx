@@ -17,9 +17,11 @@ export const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children,
       }
     };
     if (isOpen) {
+      document.body.style.overflow = 'hidden'; // Blocca lo scroll della pagina quando il modale è aperto
       document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
+      document.body.style.overflow = 'unset';
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
@@ -30,16 +32,20 @@ export const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children,
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm transition-opacity duration-300 ease-in-out"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm transition-opacity duration-300 ease-in-out p-4"
       onClick={onClose}
     >
-      {/* *** CORREZIONE CHIAVE: Layout Flessibile e Altezza Massima *** */}
-      {/* Aggiunto flex, flex-col e max-h-[90vh] per vincolare l'altezza alla viewport */}
+      {/* *** CORREZIONE CHIAVE: Larghezza Responsive *** */}
+      {/* - w-full: Occupa tutta la larghezza disponibile.
+        - sm:max-w-2xl: Su schermi piccoli (e superiori), la larghezza massima è 2xl.
+        - m-0: Rimosso il margine precedente (ora gestito dal padding del contenitore)
+        - max-h-full: L'altezza massima è quella del contenitore (che ha p-4, quindi 100% - padding).
+      */}
       <div
-        className="relative m-4 flex w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl transition-all duration-300 ease-in-out dark:bg-gray-800 max-h-[90vh]"
+        className="flex w-full sm:max-w-2xl flex-col rounded-lg bg-white shadow-xl transition-all duration-300 ease-in-out dark:bg-gray-800 max-h-full"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header (non si espande) */}
+        {/* Header */}
         <div className="flex-shrink-0 flex items-start justify-between border-b border-gray-200 p-4 dark:border-gray-600">
           {title && <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h3>}
           <button
@@ -54,15 +60,14 @@ export const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children,
           </button>
         </div>
 
-        {/* *** CORREZIONE CHIAVE: Area Contenuto Scrollabile *** */}
-        {/* Aggiunto flex-1 (per espandersi) e overflow-y-auto (per lo scroll) */}
+        {/* Area Contenuto Scrollabile */}
         <div className="flex-1 overflow-y-auto p-6">
           {children}
         </div>
 
-        {/* Footer (non si espande) */}
+        {/* Footer */}
         {footer && (
-          <div className="flex-shrink-0 flex items-center justify-end space-x-2 rounded-b border-t border-gray-200 p-4 dark:border-gray-600">
+          <div className="flex-shrink-0 border-t border-gray-200 p-4 dark:border-gray-600">
             {footer}
           </div>
         )}
