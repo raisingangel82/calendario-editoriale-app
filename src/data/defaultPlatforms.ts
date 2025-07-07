@@ -1,37 +1,42 @@
-import { Facebook, Instagram, Linkedin, Send, ShoppingCart, Youtube, Twitter, Sparkles, Twitch, MessageCircle } from 'lucide-react';
-// ▼▼▼ MODIFICA: Rimosso Pinterest da lucide-react e aggiunto SiPinterest da react-icons ▼▼▼
-import { SiTiktok, SiThreads, SiPinterest } from 'react-icons/si';
+import { 
+    Facebook, 
+    Instagram, 
+    Linkedin, 
+    Send, 
+    ShoppingCart, 
+    Youtube, 
+    Twitter, 
+    Sparkles, 
+    Twitch, 
+    MessageCircle,
+    Video,      // Per TikTok
+    AtSign,     // Per Threads
+    Camera      // Per Pinterest
+} from 'lucide-react';
 
-export interface PlatformData {
-  id: string;
-  name: string;
-  icon: React.ComponentType<any>;
-  baseUrl: string;
-  publishUrl?: string;
-  isCustom?: boolean;
-}
+export type PlatformData = {
+    id: string;
+    name: string;
+    icon: React.ElementType;
+    publishUrl?: string;
+    proFeature: boolean;
+};
 
-const defaultPlatforms: Omit<PlatformData, 'id'>[] = [
-  { name: 'Instagram', icon: Instagram, baseUrl: 'https://instagram.com', publishUrl: 'https://www.instagram.com/create/select/' },
-  { name: 'Facebook', icon: Facebook, baseUrl: 'https://facebook.com', publishUrl: 'https://www.facebook.com/business/latest/composer' },
-  { name: 'TikTok', icon: SiTiktok, baseUrl: 'https://tiktok.com', publishUrl: 'https://www.tiktok.com/upload' },
-  { name: 'YouTube', icon: Youtube, baseUrl: 'https://youtube.com', publishUrl: 'https://studio.youtube.com/' },
-  { name: 'X (Twitter)', icon: Twitter, baseUrl: 'https://x.com', publishUrl: 'https://x.com/compose/post' },
-  { name: 'LinkedIn', icon: Linkedin, baseUrl: 'https://linkedin.com', publishUrl: 'https://www.linkedin.com/feed/' },
-  // ▼▼▼ MODIFICA: Usiamo la nuova icona SiPinterest ▼▼▼
-  { name: 'Pinterest', icon: SiPinterest, baseUrl: 'https://pinterest.com', publishUrl: 'https://www.pinterest.com/pin-builder/' },
-  { name: 'Threads', icon: SiThreads, baseUrl: 'https://threads.net', publishUrl: 'https://www.threads.net/' },
-  { name: 'Telegram', icon: Send, baseUrl: 'https://web.telegram.org', publishUrl: 'https://web.telegram.org/' },
-  { name: 'Amazon', icon: ShoppingCart, baseUrl: 'https://kdp.amazon.com', publishUrl: 'https://kdp.amazon.com/it_IT/title-setup/paperback/new' },
-  { name: 'Twitch', icon: Twitch, baseUrl: 'https://twitch.tv', publishUrl: 'https://dashboard.twitch.tv/stream-manager' },
-  { name: 'Community', icon: Sparkles, baseUrl: '', publishUrl: '' },
-  { name: 'Newsletter', icon: MessageCircle, baseUrl: '', publishUrl: '' },
+export const allDefaultPlatforms: PlatformData[] = [
+    { id: 'instagram', name: 'Instagram', icon: Instagram, publishUrl: 'https://www.instagram.com/', proFeature: false },
+    { id: 'facebook', name: 'Facebook', icon: Facebook, publishUrl: 'https://www.facebook.com/', proFeature: false },
+    // --- Icone problematiche sostituite con alternative da lucide-react ---
+    { id: 'tiktok', name: 'TikTok', icon: Video, publishUrl: 'https://www.tiktok.com/', proFeature: false },
+    { id: 'threads', name: 'Threads', icon: AtSign, publishUrl: 'https://www.threads.net/', proFeature: false },
+    { id: 'x', name: 'X', icon: Twitter, publishUrl: 'https://twitter.com/compose/tweet', proFeature: false },
+    { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, publishUrl: 'https://www.linkedin.com/feed/?shareActive=true', proFeature: true },
+    { id: 'youtube', name: 'YouTube', icon: Youtube, publishUrl: 'https://www.youtube.com/upload', proFeature: true },
+    { id: 'pinterest', name: 'Pinterest', icon: Camera, publishUrl: 'https://www.pinterest.com/pin-builder/', proFeature: true },
+    { id: 'twitch', name: 'Twitch', icon: Twitch, publishUrl: 'https://dashboard.twitch.tv/stream-manager', proFeature: true },
+    { id: 'telegram', name: 'Telegram', icon: Send, proFeature: true },
+    { id: 'newsletter', name: 'Newsletter', icon: Sparkles, proFeature: true },
+    { id: 'ecommerce', name: 'E-commerce', icon: ShoppingCart, proFeature: true },
+    { id: 'whatsapp', name: 'WhatsApp', icon: MessageCircle, proFeature: true },
 ];
 
-export const allDefaultPlatforms: PlatformData[] = defaultPlatforms.map((p, index) => ({
-  ...p,
-  id: `default-${index}`,
-  isCustom: false
-}));
-
-export const freePlatforms = allDefaultPlatforms.filter(p => ['Instagram', 'Facebook', 'TikTok'].includes(p.name));
+export const freePlatforms = allDefaultPlatforms.filter(p => !p.proFeature);

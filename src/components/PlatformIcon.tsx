@@ -1,9 +1,14 @@
 import React from 'react';
-import {
-  SiInstagram, SiTiktok, SiFacebook, SiYoutube, SiLinkedin, SiThreads, 
-  SiX // <-- 1. NOME CORRETTO DELL'ICONA IMPORTATA
-} from 'react-icons/si';
-import { HelpCircle } from 'lucide-react'; // Un'icona di default
+import { 
+  Instagram, 
+  Video, // Sostituisce TikTok
+  Facebook, 
+  Youtube, 
+  Linkedin, 
+  AtSign, // Sostituisce Threads
+  Twitter, // Sostituisce X
+  HelpCircle 
+} from 'lucide-react';
 
 interface PlatformIconProps {
   platform: string;
@@ -11,27 +16,25 @@ interface PlatformIconProps {
 }
 
 export const PlatformIcon: React.FC<PlatformIconProps> = ({ platform, className = "w-5 h-5" }) => {
-  const platformLower = platform?.toLowerCase() || '';
+  const platformName = platform.toLowerCase();
 
-  // Usiamo un'istruzione switch per restituire l'icona corretta
-  switch (platformLower) {
+  switch (platformName) {
     case 'instagram':
-      return <SiInstagram className={className} />;
+      return <Instagram className={className} />;
     case 'tiktok':
-      return <SiTiktok className={className} />;
+      return <Video className={className} />; // Icona sostituita
     case 'facebook':
-      return <SiFacebook className={className} />;
+      return <Facebook className={className} />;
     case 'youtube':
-      return <SiYoutube className={className} />;
+      return <Youtube className={className} />;
     case 'linkedin':
-      return <SiLinkedin className={className} />;
+      return <Linkedin className={className} />;
     case 'threads':
-      return <SiThreads className={className} />;
-    case 'x (twitter)':
+      return <AtSign className={className} />; // Icona sostituita
     case 'x':
-      return <SiX className={className} />; // <-- 2. USIAMO IL COMPONENTE CORRETTO
+    case 'twitter':
+      return <Twitter className={className} />; // Icona sostituita
     default:
-      // Se non troviamo una corrispondenza, mostriamo un'icona generica
       return <HelpCircle className={className} />;
   }
 };

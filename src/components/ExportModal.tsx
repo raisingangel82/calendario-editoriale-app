@@ -1,9 +1,5 @@
-import React, { useState } from 'react';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Pagination } from 'swiper/modules';
-import 'swiper/css';
-import 'swiper/css/pagination';
-import { Download, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import type { Categoria } from '../types';
 import { BaseModal } from './BaseModal';
@@ -17,68 +13,84 @@ interface ExportModalProps {
 
 export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, onExport, maxCount }) => {
     const { getActiveColor, getActiveColorHex } = useTheme();
+    
+    const [currentPage, setCurrentPage] = useState(0);
     const [count, setCount] = useState(10);
     const [filter, setFilter] = useState<Categoria | 'all'>('all');
-    const [swiper, setSwiper] = useState<any>(null);
+
+    useEffect(() => {
+        if (isOpen) {
+            setCurrentPage(0);
+            setCount(10);
+            setFilter('all');
+        }
+    }, [isOpen]);
 
     const handleExportClick = () => {
         onExport(Math.min(count, maxCount), filter);
         onClose();
     };
 
-    const slideTo = (index: number) => swiper?.slideTo(index);
-    const baseInputStyle = "w-full bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-slate-600 rounded-lg p-4 text-lg focus:ring-2 focus:ring-blue-500 outline-none";
+    const baseInputStyle = "w-full bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-slate-600 rounded-lg p-4 text-lg focus:ring-2 focus:ring-blue-500 outline-none";
     const labelStyle = "block text-base font-semibold text-gray-800 dark:text-gray-200 mb-2";
+    const FormPage = ({ children }: { children: React.ReactNode }) => <div className="h-full flex flex-col justify-center animate-fade-in">{children}</div>;
 
     const footerContent = (
-        <div className="flex w-full items-center justify-between gap-4">
-            <div className="swiper-pagination-container flex items-center gap-2 !w-auto" />
+        // Contenitore principale del footer con posizione relativa per gli indicatori
+        <div className="relative flex w-full items-center justify-between gap-4">
+            {/* Slot Sinistro: per il pulsante Indietro */}
+            <div className="flex-1">
+                {currentPage > 0 && (
+                    <button onClick={() => setCurrentPage(0)} className="px-6 py-3 text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors flex items-center gap-2">
+                        <ArrowLeft size={18} /> Indietro
+                    </button>
+                )}
+            </div>
+
+            {/* Slot Centrale: per gli indicatori di pagina */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
+                {[0, 1].map(pageIndex => (
+                    <button key={pageIndex} onClick={() => setCurrentPage(pageIndex)} className={`h-2 rounded-full transition-all ${currentPage === pageIndex ? 'w-6' : 'w-2'}`} style={{ backgroundColor: currentPage === pageIndex ? getActiveColorHex() : '#9ca3af' }} />
+                ))}
+            </div>
             
-            {swiper?.activeIndex === 0 ? (
-                <button onClick={() => slideTo(1)} className={`flex-grow px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90`}>
-                    Avanti <ArrowRight size={18} className="inline"/>
-                </button>
-            ) : (
-                <button onClick={handleExportClick} className={`flex-grow px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90`}>
-                    <Download size={20} className="inline-block mr-2"/> Esporta Ora
-                </button>
-            )}
+            {/* Slot Destro: per il pulsante Avanti/Esporta */}
+            <div className="flex-1 flex justify-end">
+                {currentPage === 0 ? (
+                    <button onClick={() => setCurrentPage(1)} className={`px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90 flex items-center gap-2`}>
+                        Avanti <ArrowRight size={18} />
+                    </button>
+                ) : (
+                    <button onClick={handleExportClick} className={`px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90 flex items-center gap-2`}>
+                        <Download size={20} /> Esporta Ora
+                    </button>
+                )}
+            </div>
         </div>
     );
 
     return (
         <BaseModal isOpen={isOpen} onClose={onClose} title="Esporta Contenuti da Creare" footer={footerContent}>
-            <Swiper
-                modules={[Pagination]}
-                pagination={{ el: '.swiper-pagination-container', clickable: true }}
-                className="w-full h-full"
-                onSwiper={setSwiper}
-                direction="horizontal"
-                style={{
-                    '--swiper-pagination-color': getActiveColorHex(),
-                    '--swiper-pagination-bullet-inactive-color': '#9ca3af',
-                    '--swiper-pagination-bullet-inactive-opacity': '1',
-                } as React.CSSProperties}
-            >
-                <SwiperSlide className="py-2 px-1">
-                    <div className="h-full flex flex-col justify-center">
-                        <label className={labelStyle}>Filtra per Categoria</label>
-                        <select value={filter} onChange={(e) => setFilter(e.target.value as Categoria | 'all')} className={baseInputStyle}>
+            <div className="min-h-[150px]">
+                {currentPage === 0 && (
+                    <FormPage>
+                        <label htmlFor="category-filter" className={labelStyle}>Filtra per Categoria</label>
+                        <select id="category-filter" value={filter} onChange={(e) => setFilter(e.target.value as Categoria | 'all')} className={baseInputStyle}>
                             <option value="all">Tutte le Categorie</option>
                             <option value="Testo">Testo</option>
                             <option value="Immagine">Immagine</option>
                             <option value="Video">Video</option>
                         </select>
-                    </div>
-                </SwiperSlide>
-                <SwiperSlide className="py-2 px-1">
-                    <div className="h-full flex flex-col justify-center">
-                        <label className={labelStyle}>Numero di Contenuti</label>
+                    </FormPage>
+                )}
+                {currentPage === 1 && (
+                    <FormPage>
+                        <label htmlFor="content-count" className={labelStyle}>Numero di Contenuti</label>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Quanti post vuoi esportare? (Max: {maxCount})</p>
-                        <input type="number" value={count} onChange={(e) => setCount(Math.max(1, parseInt(e.target.value, 10) || 1))} min="1" max={maxCount} className={baseInputStyle} />
-                    </div>
-                </SwiperSlide>
-            </Swiper>
+                        <input id="content-count" type="number" value={count} onChange={(e) => setCount(Math.max(1, parseInt(e.target.value, 10) || 1))} min="1" max={maxCount} className={baseInputStyle} />
+                    </FormPage>
+                )}
+            </div>
         </BaseModal>
     );
 };

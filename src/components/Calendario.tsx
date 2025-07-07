@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DndContext, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
@@ -27,12 +27,11 @@ interface CalendarioProps {
 export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, workingDays = [1, 2, 3, 4, 5], onCardClick, onStatusChange }) => {
     const { getActiveColor } = useTheme();
     const isDesktop = useBreakpoint();
-    const oggi = useMemo(() => startOfDay(new Date()), []);
+    const [oggi] = useState(() => startOfDay(new Date()));
     const [weeks, setWeeks] = useState<Date[][]>([]);
 
     useEffect(() => {
         const dataInizioCalendario = startOfWeek(addDays(oggi, -21), { weekStartsOn: 1 });
-        // ▼▼▼ MODIFICA: Rimosso il filtro che forzava la visualizzazione di 'oggi' ▼▼▼
         const weekArray = Array.from({ length: 12 }, (_, i) => {
             const settimanaInizio = addWeeks(dataInizioCalendario, i);
             return Array.from({ length: 7 }, (_, j) => addDays(settimanaInizio, j))
@@ -46,22 +45,18 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
             const scrollContainer = document.getElementById('main-scroll-container');
             if (!scrollContainer || weeks.length === 0) return;
 
-            // ▼▼▼ NUOVA LOGICA DI SCROLL CORRETTA ▼▼▼
             let targetDay;
             const isTodayWorkingDay = workingDays.includes(getDay(oggi));
 
             if (isTodayWorkingDay) {
-                // Se oggi è un giorno lavorativo, punta a oggi.
                 targetDay = oggi;
             } else {
-                // Altrimenti, calcola il prossimo giorno lavorativo.
                 let nextDay = addDays(oggi, 1);
                 while (!workingDays.includes(getDay(nextDay))) {
                     nextDay = addDays(nextDay, 1);
                 }
                 targetDay = nextDay;
             }
-            // ▲▲▲ FINE NUOVA LOGICA ▲▲▲
 
             let targetId;
             if (isDesktop) {
@@ -95,9 +90,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
     if (isDesktop) {
         return ( <div className="p-6"> <DndContext onDragEnd={handleDragEnd}> <div className="space-y-8"> {weeks.map((settimana, index) => { 
             if (settimana.length === 0) return null;
-            const gridColsClass = settimana.length === 7
-                ? 'grid-cols-[repeat(7,minmax(0,1fr))]'
-                : `grid-cols-${settimana.length}`;
+            const gridColsClass = `grid-cols-${settimana.length}`;
 
             return ( <div key={index} id={`week-${format(settimana[0], 'yyyy-ww')}`}> <h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">{format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[settimana.length - 1], 'dd MMM', { locale: it })}</h3> <div className="border-l border-t border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800"> <div className={`grid ${gridColsClass}`}>{settimana.map(giorno => {
                 const isToday = isEqual(startOfDay(giorno), oggi);
