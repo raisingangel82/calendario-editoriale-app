@@ -18,6 +18,13 @@ interface ContenutoModalProps {
   onDuplicate: (post: Post) => void;
 }
 
+// Sposta la definizione di FormPage fuori dal componente ContenutoModal
+// Questo evita che React ricrei e rimonti il div e i suoi figli ad ogni render del genitore,
+// mantenendo il focus negli input.
+const FormPage = ({ children }: { children: React.ReactNode }) => (
+  <div className="space-y-6 h-full animate-fade-in">{children}</div>
+);
+
 export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, onClose, onSave, onDelete, onDuplicate }) => {
   const { user } = useAuth();
   const { getActiveColor, getActiveColorHex } = useTheme();
@@ -114,7 +121,6 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
 
   const inputBaseStyle = "w-full bg-gray-100 dark:bg-slate-700/50 border border-gray-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 rounded-lg p-3 text-base text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500";
   const labelStyle = "block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2";
-  const FormPage = ({ children }: { children: React.ReactNode }) => <div className="space-y-6 h-full animate-fade-in">{children}</div>;
 
   const footerContent = (
     <div className="flex w-full flex-wrap items-center justify-center sm:justify-between gap-4">
