@@ -77,12 +77,15 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({ onImportClick, onExp
   };
   
   return (
-    <div className="p-4 sm:p-6">
+    // FIX: Apply flex-col, h-full, overflow-y-auto to the main container
+    // And add padding-bottom to ensure content above the BottomBar is visible.
+    <div className="flex flex-col h-full overflow-y-auto p-4 sm:p-6 pb-20"> {/* pb-20 to account for BottomBar (h-16 + some extra space) */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Utility e Impostazioni</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* This div itself doesn't need specific height/overflow if its parent handles it */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-grow"> {/* Use flex-grow to make it take available space */}
           <SettingsCard title="Tema e Impostazioni" icon={Palette}>
             <div className="flex flex-col gap-4">
                 <div>
@@ -148,6 +151,7 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({ onImportClick, onExp
                 </div>
               </div>
           </SettingsCard>
+          {/* PlatformManager itself does not need a max-height or overflow if its parent handles it */}
           <PlatformManager />
       </div>
     </div>
