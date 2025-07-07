@@ -3,6 +3,7 @@ import type { Post, Progetto, Categoria } from '../types';
 import { ContenutoCard } from './ContenutoCard';
 import { Timestamp } from 'firebase/firestore';
 import { useTheme } from '../contexts/ThemeContext';
+import { projectColorPalette, getColor } from '../data/colorPalette';
 
 interface FilteredListViewProps {
     posts: Post[];
@@ -33,15 +34,17 @@ const FilterPill: React.FC<{
     label: string;
     isActive: boolean;
     onClick: () => void;
-}> = ({ label, isActive, onClick }) => {
+    colorClass?: string;
+    textColorClass?: string;
+}> = ({ label, isActive, onClick, colorClass = '', textColorClass = 'text-white' }) => {
     const { getActiveColor } = useTheme();
-    const activeClasses = `${getActiveColor('bg')} text-white font-bold`;
+    const activeClasses = colorClass ? `${colorClass} ${textColorClass} font-bold` : `${getActiveColor('bg')} text-white font-bold`;
     const inactiveClasses = 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600';
     
     return (
         <button
             onClick={onClick}
-            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all shadow-sm border dark:border-transparent ${isActive ? activeClasses : inactiveClasses}`}
+            className={`px-4 py-2 rounded-full text-sm font-semibold transition-all shadow-sm border dark:border-transparent whitespace-nowrap ${isActive ? activeClasses : inactiveClasses}`}
         >
             {label}
         </button>
@@ -49,11 +52,24 @@ const FilterPill: React.FC<{
 };
 
 export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, progetti, onPostClick, onStatusChange }) => {
-    const [filter, setFilter] = useState<Categoria | 'all'>('all');
+    // STATO UNICO per gestire il filtro attivo
+    const [activeFilter, setActiveFilter] = useState<{ type: 'category' | 'project', value: string }>({ type: 'category', value: 'all' });
 
     const filteredAndSortedPosts = useMemo(() => {
         return posts
-            .filter(post => !post.statoProdotto && (filter === 'all' || getCategoriaGenerica(post.tipoContenuto) === filter))
+            .filter(post => {
+                if (post.statoProdotto) return false; // Escludi sempre i post già prodotti
+                
+                if (activeFilter.type === 'category') {
+                    return activeFilter.value === 'all' || getCategoriaGenerica(post.tipoContenuto) === activeFilter.value;
+                }
+                
+                if (activeFilter.type === 'project') {
+                    return activeFilter.value === 'all' || post.projectId === activeFilter.value;
+                }
+
+                return true;
+            })
             .slice()
             .sort((a, b) => {
                 const timeA = normalizeDateToMillis(a.data);
@@ -63,9 +79,9 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                 if (timeB === 0) return -1;
                 return timeA - timeB;
             });
-    }, [posts, filter]);
+    }, [posts, activeFilter]);
 
-    const filterOptions: (Categoria | 'all')[] = ['all', 'Testo', 'Immagine', 'Video'];
+    const categoryFilterOptions: (Categoria | 'all')[] = ['all', 'Testo', 'Immagine', 'Video'];
 
     return (
         <div className="p-4 sm:p-6">
@@ -73,15 +89,44 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">
                     Contenuti da Creare
                 </h1>
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 custom-scrollbar">
-                    {filterOptions.map(option => (
-                        <FilterPill 
-                            key={option}
-                            label={option === 'all' ? 'Tutti' : option}
-                            isActive={filter === option}
-                            onClick={() => setFilter(option)}
+                {/* Contenitore per i filtri con scroll orizzontale */}
+                <div className="flex flex-col gap-4">
+                    {/* Filtri per Categoria */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 custom-scrollbar">
+                        {categoryFilterOptions.map(option => (
+                            <FilterPill 
+                                key={`cat-${option}`}
+                                label={option === 'all' ? 'Tutte le Categorie' : option}
+                                isActive={activeFilter.type === 'category' && activeFilter.value === option}
+                                onClick={() => setActiveFilter({ type: 'category', value: option })}
+                            />
+                        ))}
+                    </div>
+                    {/* Filtri per Progetto */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 custom-scrollbar border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <FilterPill
+                            key="proj-all"
+                            label="Tutti i Progetti"
+                            isActive={activeFilter.type === 'project' && activeFilter.value === 'all'}
+                            onClick={() => setActiveFilter({ type: 'project', value: 'all' })}
                         />
-                    ))}
+                        {progetti.map(proj => {
+                            const colorInfo = projectColorPalette.find(p => p.base === proj.color);
+                            const bgColor = colorInfo?.shades['700'].bgClass || 'bg-gray-500';
+                            const textColor = colorInfo?.shades['700'].textClass || 'text-white';
+
+                            return (
+                                <FilterPill 
+                                    key={`proj-${proj.id}`}
+                                    label={proj.nome}
+                                    isActive={activeFilter.type === 'project' && activeFilter.value === proj.id}
+                                    onClick={() => setActiveFilter({ type: 'project', value: proj.id })}
+                                    colorClass={bgColor}
+                                    textColorClass={textColor}
+                                />
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
             
@@ -104,7 +149,7 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                     })
                 ) : (
                     <div className="col-span-full text-center py-16 bg-white dark:bg-gray-800 rounded-lg">
-                        <p className="text-gray-500 dark:text-gray-400">Nessun contenuto da creare per questa categoria.</p>
+                        <p className="text-gray-500 dark:text-gray-400">Nessun contenuto da creare per questo filtro.</p>
                         <p className="text-lg font-semibold mt-2">Ottimo lavoro! ✨</p>
                     </div>
                 )}
