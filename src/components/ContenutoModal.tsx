@@ -47,7 +47,6 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
 
   const prevPostIdRef = useRef<string | undefined>();
 
-  // Trova i dati della piattaforma attualmente selezionata per ottenere l'URL di pubblicazione
   const selectedPlatform = useMemo(() => {
     return availablePlatforms.find(p => p.name === piattaforma);
   }, [piattaforma, availablePlatforms]);
@@ -127,14 +126,20 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   const footerContent = (
     <div className="flex w-full flex-wrap items-center justify-center sm:justify-between gap-4">
       {/* Gruppo Azioni Sinistra */}
-      <div className="flex items-center gap-2 order-2 sm:order-1">
+      {/* *** CORREZIONE: Aggiunto justify-around per mobile e rimosso gap per desktop (sm:gap-2) *** */}
+      <div className="flex items-center justify-around sm:justify-start w-full sm:w-auto order-2 sm:order-1 sm:gap-2">
         {isEditMode && <button onClick={handleDelete} className="p-3 bg-red-600/10 text-red-600 rounded-lg hover:bg-red-600/20 transition-colors" title="Elimina Post"><Trash2 size={20} /></button>}
         {isEditMode && <button onClick={handleDuplicate} disabled={user?.plan !== 'pro'} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50" title="Duplica Post (Pro)"><Copy size={20} /></button>}
-        <div className="h-6 w-px bg-gray-300 dark:bg-slate-600 mx-1"></div>
-        {/* *** ICONA MODIFICATA QUI *** */}
+        
+        {/* Separatore visibile solo su desktop */}
+        <div className="hidden sm:block h-6 w-px bg-gray-300 dark:bg-slate-600"></div>
+        
         <button onClick={() => window.open(userCloudServiceUrl, '_blank')} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors" title="Apri il servizio cloud"><Cloud size={20} /></button>
         <button onClick={() => urlMedia && window.open(urlMedia, '_blank')} disabled={!urlMedia} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Apri il link del media"><ExternalLink size={20} /></button>
-        <div className="h-6 w-px bg-gray-300 dark:bg-slate-600 mx-1"></div>
+        
+        {/* Separatore visibile solo su desktop */}
+        <div className="hidden sm:block h-6 w-px bg-gray-300 dark:bg-slate-600"></div>
+
         <button 
           onClick={() => selectedPlatform?.publishUrl && window.open(selectedPlatform.publishUrl, '_blank')} 
           disabled={!selectedPlatform?.publishUrl} 
@@ -152,7 +157,8 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
       
       {/* Gruppo Navigazione Destra */}
       <div className="flex items-center gap-3 order-3 w-full sm:w-auto">
-        {currentPage > 0 && <button onClick={() => setCurrentPage(currentPage - 1)} className="px-6 py-3 text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors flex items-center gap-2"> <ArrowLeft size={18} /> Indietro</button>}
+        {/* *** CORREZIONE: Aggiunto flex-1 al pulsante Indietro per mobile *** */}
+        {currentPage > 0 && <button onClick={() => setCurrentPage(currentPage - 1)} className="flex-1 sm:flex-none px-6 py-3 text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors flex items-center justify-center gap-2"> <ArrowLeft size={18} /> Indietro</button>}
         {currentPage < 2 ? 
           <button onClick={() => setCurrentPage(currentPage + 1)} className={`flex-1 px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90 flex items-center gap-2 justify-center`}>Avanti <ArrowRight size={18} /></button>
           :
