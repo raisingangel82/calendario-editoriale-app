@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { format as formatDateFns, parseISO } from 'date-fns';
-import { Trash2, Copy, Check, ArrowRight, Save, Plus, ArrowLeft, ExternalLink, FolderKanban, Send } from 'lucide-react';
+import { Trash2, Copy, Check, ArrowRight, Save, Plus, ArrowLeft, ExternalLink, Cloud, Send } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -131,9 +131,9 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
         {isEditMode && <button onClick={handleDelete} className="p-3 bg-red-600/10 text-red-600 rounded-lg hover:bg-red-600/20 transition-colors" title="Elimina Post"><Trash2 size={20} /></button>}
         {isEditMode && <button onClick={handleDuplicate} disabled={user?.plan !== 'pro'} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50" title="Duplica Post (Pro)"><Copy size={20} /></button>}
         <div className="h-6 w-px bg-gray-300 dark:bg-slate-600 mx-1"></div>
-        <button onClick={() => window.open(userCloudServiceUrl, '_blank')} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors" title="Apri il servizio cloud"><FolderKanban size={20} /></button>
+        {/* *** ICONA MODIFICATA QUI *** */}
+        <button onClick={() => window.open(userCloudServiceUrl, '_blank')} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors" title="Apri il servizio cloud"><Cloud size={20} /></button>
         <button onClick={() => urlMedia && window.open(urlMedia, '_blank')} disabled={!urlMedia} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Apri il link del media"><ExternalLink size={20} /></button>
-        {/* *** BOTTONE PUBBLICA REINSERITO QUI *** */}
         <div className="h-6 w-px bg-gray-300 dark:bg-slate-600 mx-1"></div>
         <button 
           onClick={() => selectedPlatform?.publishUrl && window.open(selectedPlatform.publishUrl, '_blank')} 
