@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { format as formatDateFns, parseISO } from 'date-fns';
-import { Trash2, Copy, Check, ArrowRight, Save, Plus, ArrowLeft, ExternalLink, FolderKanban } from 'lucide-react';
+import { Trash2, Copy, Check, ArrowRight, Save, Plus, ArrowLeft, ExternalLink, FolderKanban, Send } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -18,9 +18,6 @@ interface ContenutoModalProps {
   onDuplicate: (post: Post) => void;
 }
 
-// Sposta la definizione di FormPage fuori dal componente ContenutoModal
-// Questo evita che React ricrei e rimonti il div e i suoi figli ad ogni render del genitore,
-// mantenendo il focus negli input.
 const FormPage = ({ children }: { children: React.ReactNode }) => (
   <div className="space-y-6 h-full animate-fade-in">{children}</div>
 );
@@ -49,6 +46,11 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   const [isPubblicato, setIsPubblicato] = useState(false);
 
   const prevPostIdRef = useRef<string | undefined>();
+
+  // Trova i dati della piattaforma attualmente selezionata per ottenere l'URL di pubblicazione
+  const selectedPlatform = useMemo(() => {
+    return availablePlatforms.find(p => p.name === piattaforma);
+  }, [piattaforma, availablePlatforms]);
 
   useEffect(() => {
     if (post?.id !== prevPostIdRef.current) {
@@ -131,9 +133,19 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
         <div className="h-6 w-px bg-gray-300 dark:bg-slate-600 mx-1"></div>
         <button onClick={() => window.open(userCloudServiceUrl, '_blank')} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors" title="Apri il servizio cloud"><FolderKanban size={20} /></button>
         <button onClick={() => urlMedia && window.open(urlMedia, '_blank')} disabled={!urlMedia} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Apri il link del media"><ExternalLink size={20} /></button>
+        {/* *** BOTTONE PUBBLICA REINSERITO QUI *** */}
+        <div className="h-6 w-px bg-gray-300 dark:bg-slate-600 mx-1"></div>
+        <button 
+          onClick={() => selectedPlatform?.publishUrl && window.open(selectedPlatform.publishUrl, '_blank')} 
+          disabled={!selectedPlatform?.publishUrl} 
+          className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+          title={selectedPlatform?.publishUrl ? `Pubblica su ${selectedPlatform.name}` : 'Nessun link di pubblicazione per questa piattaforma'}
+        >
+          <Send size={20} />
+        </button>
       </div>
 
-      {/* Paginazione (Centrale su desktop, in alto su mobile) */}
+      {/* Paginazione */}
       <div className="flex items-center gap-2 order-1 sm:order-2 w-full justify-center sm:w-auto sm:absolute sm:left-1/2 sm:-translate-x-1/2">
         {[0, 1, 2].map(pageIndex => (<button key={pageIndex} onClick={() => setCurrentPage(pageIndex)} className={`h-2 rounded-full transition-all ${currentPage === pageIndex ? 'w-6' : 'w-2'}`} style={{ backgroundColor: currentPage === pageIndex ? getActiveColorHex() : '#9ca3af' }} />))}
       </div>
