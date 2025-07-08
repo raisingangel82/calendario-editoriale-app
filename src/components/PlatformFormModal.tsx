@@ -15,17 +15,34 @@ export const PlatformFormModal: React.FC<PlatformFormModalProps> = ({ isOpen, on
   const [publishUrl, setPublishUrl] = useState('');
   const { getActiveColor } = useTheme();
 
-  useEffect(() => { if (platformToEdit) { setName(platformToEdit.name); setPublishUrl(platformToEdit.publishUrl || ''); } else { setName(''); setPublishUrl(''); } }, [platformToEdit, isOpen]);
+  useEffect(() => { 
+    if (isOpen) {
+        if (platformToEdit) { 
+            setName(platformToEdit.name); 
+            setPublishUrl(platformToEdit.publishUrl || ''); 
+        } else { 
+            setName(''); 
+            setPublishUrl(''); 
+        }
+    }
+  }, [platformToEdit, isOpen]);
   
-  const handleSaveClick = () => { if (!name) { alert('Il nome della piattaforma è obbligatorio.'); return; } onSave({ name, publishUrl }); };
+  const handleSaveClick = () => { 
+      if (!name) { 
+          // Sostituito alert con console.error per non bloccare l'UI
+          console.error('Il nome della piattaforma è obbligatorio.'); 
+          return; 
+      } 
+      onSave({ name, publishUrl }); 
+  };
 
   const inputStyle = "w-full p-3 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-base text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500";
   const labelStyle = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2";
 
   const footerContent = (
-    <div className="flex justify-end gap-3">
-      <button onClick={onClose} className="px-6 py-3 text-base font-medium rounded-lg bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">Annulla</button>
-      <button onClick={handleSaveClick} className={`px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')}`}>Salva Piattaforma</button>
+    <div className="flex w-full flex-wrap sm:flex-nowrap justify-end gap-3">
+      <button onClick={onClose} className="flex-1 sm:flex-none px-6 py-3 text-base font-medium rounded-lg bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors">Annulla</button>
+      <button onClick={handleSaveClick} className={`flex-1 sm:flex-none px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90`}>Salva Piattaforma</button>
     </div>
   );
 

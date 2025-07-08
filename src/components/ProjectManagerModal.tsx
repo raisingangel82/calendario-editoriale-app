@@ -51,22 +51,35 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ proget
   const inputStyle = "w-full p-3 bg-gray-100 dark:bg-slate-700/50 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-base text-gray-900 dark:text-gray-100";
   const labelStyle = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2";
 
+  // --- INIZIO SEZIONE MODIFICATA ---
   const footerContent = (
+    // Su mobile (default), i pulsanti sono in riga e si dividono lo spazio grazie a `flex-1`.
+    // Su schermi più grandi (`sm:`), l'allineamento torna a destra e la larghezza dei pulsanti è automatica.
     <div className="flex w-full justify-end gap-3">
         {editingId ? (
-             <button onClick={resetForm} className="px-6 py-3 text-base font-medium rounded-lg bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors flex items-center gap-2">
-                <Ban size={16} /> Annulla Modifica
+             <button
+                onClick={resetForm}
+                className="flex-1 sm:flex-initial justify-center px-6 py-3 text-base font-medium rounded-lg bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors flex items-center gap-2"
+             >
+                <Ban size={16} /> Annulla
              </button>
         ) : (
-            <button onClick={onClose} className="px-6 py-3 text-base font-medium rounded-lg bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">
-                Annulla
+            <button
+                onClick={onClose}
+                className="flex-1 sm:flex-initial justify-center px-6 py-3 text-base font-medium rounded-lg bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
+            >
+                Chiudi
             </button>
         )}
-        <button onClick={handleSave} className={`px-6 py-3 text-base font-medium text-white rounded-lg transition-colors flex items-center gap-2 ${getActiveColor('bg')} hover:opacity-90`}>
-            {editingId ? <><Save size={16}/> Salva Modifiche</> : <><Plus size={16}/> Aggiungi Progetto</>}
+        <button
+            onClick={handleSave}
+            className={`flex-1 sm:flex-initial justify-center px-6 py-3 text-base font-medium text-white rounded-lg transition-colors flex items-center gap-2 ${getActiveColor('bg')} hover:opacity-90`}
+        >
+            {editingId ? <><Save size={16}/> Salva</> : <><Plus size={16}/> Aggiungi</>}
         </button>
     </div>
   );
+  // --- FINE SEZIONE MODIFICATA ---
 
   return (
     <BaseModal isOpen={true} onClose={onClose} title="Gestisci Progetti" footer={footerContent}>

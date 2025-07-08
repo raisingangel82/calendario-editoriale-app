@@ -20,9 +20,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({ onClose, onImport }) =
   const handleImportClick = () => { if (!selectedFile) { setError('Nessun file selezionato.'); return; } const reader = new FileReader(); reader.onload = (event) => { try { const content = event.target?.result; if (!content) throw new Error('Il contenuto del file è vuoto.'); const parsedData = JSON.parse(content as string); if (!Array.isArray(parsedData.posts)) throw new Error('Il file JSON deve contenere un array "posts".'); onImport(parsedData.posts, importMode); } catch (e: any) { setError(`Errore nel formato del file: ${e.message}`); } }; reader.onerror = () => setError('Impossibile leggere il file.'); reader.readAsText(selectedFile); };
 
   const footerContent = (
-    <div className="flex w-full justify-end gap-3">
-       <button onClick={onClose} className="px-6 py-3 text-base font-medium rounded-lg bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">Annulla</button>
-       <button onClick={handleImportClick} disabled={!selectedFile} className={`px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')} disabled:opacity-50`}>Carica e Importa</button>
+    // *** CORREZIONE: Layout del footer reso responsive ***
+    <div className="flex w-full flex-wrap sm:flex-nowrap justify-end gap-3">
+       <button onClick={onClose} className="flex-1 sm:flex-none px-6 py-3 text-base font-medium rounded-lg bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors">Annulla</button>
+       <button onClick={handleImportClick} disabled={!selectedFile} className={`flex-1 sm:flex-none px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90 disabled:opacity-50`}>Carica e Importa</button>
     </div>
   );
 

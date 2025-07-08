@@ -36,35 +36,36 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, onExp
     const FormPage = ({ children }: { children: React.ReactNode }) => <div className="h-full flex flex-col justify-center animate-fade-in">{children}</div>;
 
     const footerContent = (
-        // Contenitore principale del footer con posizione relativa per gli indicatori
-        <div className="relative flex w-full items-center justify-between gap-4">
-            {/* Slot Sinistro: per il pulsante Indietro */}
-            <div className="flex-1">
-                {currentPage > 0 && (
-                    <button onClick={() => setCurrentPage(0)} className="px-6 py-3 text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors flex items-center gap-2">
-                        <ArrowLeft size={18} /> Indietro
-                    </button>
-                )}
-            </div>
-
-            {/* Slot Centrale: per gli indicatori di pagina */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2">
+        <div className="flex w-full flex-col items-center justify-center gap-4">
+            {/* Indicatori di pagina */}
+            <div className="flex items-center gap-2">
                 {[0, 1].map(pageIndex => (
                     <button key={pageIndex} onClick={() => setCurrentPage(pageIndex)} className={`h-2 rounded-full transition-all ${currentPage === pageIndex ? 'w-6' : 'w-2'}`} style={{ backgroundColor: currentPage === pageIndex ? getActiveColorHex() : '#9ca3af' }} />
                 ))}
             </div>
-            
-            {/* Slot Destro: per il pulsante Avanti/Esporta */}
-            <div className="flex-1 flex justify-end">
-                {currentPage === 0 ? (
-                    <button onClick={() => setCurrentPage(1)} className={`px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90 flex items-center gap-2`}>
-                        Avanti <ArrowRight size={18} />
-                    </button>
-                ) : (
-                    <button onClick={handleExportClick} className={`px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90 flex items-center gap-2`}>
-                        <Download size={20} /> Esporta Ora
-                    </button>
-                )}
+            {/* Pulsanti di azione */}
+            <div className="flex w-full items-center gap-3">
+                {/* Slot Sinistro: visibile solo se non è la prima pagina */}
+                <div className="flex-1">
+                    {currentPage > 0 && (
+                        <button onClick={() => setCurrentPage(0)} className="w-full sm:w-auto px-6 py-3 text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors flex items-center justify-center gap-2">
+                            <ArrowLeft size={18} /> Indietro
+                        </button>
+                    )}
+                </div>
+                
+                {/* Slot Destro */}
+                <div className="flex-1 flex justify-end">
+                    {currentPage === 0 ? (
+                        <button onClick={() => setCurrentPage(1)} className={`w-full sm:w-auto px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90 flex items-center justify-center gap-2`}>
+                            Avanti <ArrowRight size={18} />
+                        </button>
+                    ) : (
+                        <button onClick={handleExportClick} className={`w-full sm:w-auto px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90 flex items-center justify-center gap-2`}>
+                            <Download size={20} /> Esporta Ora
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );
