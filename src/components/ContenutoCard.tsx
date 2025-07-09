@@ -20,7 +20,7 @@ interface ContenutoCardProps {
     isDraggable: boolean;
 }
 
-export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto, projectColor, showDate, isMobileView, onCardClick, onStatusChange, isDraggable }) => {
+export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto, projectColor, showDate, onCardClick, onStatusChange, isDraggable }) => {
     const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: post.id, disabled: !isDraggable });
     
     const { colorShade } = useTheme();
@@ -66,29 +66,29 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
             </div>
 
             {/* COLONNA CENTRALE: Contenuto Principale */}
-            <div className="flex-grow p-2 flex flex-col justify-between min-w-0" onClick={() => onCardClick(post)}>
-                <div>
-                    <p className="font-bold text-sm text-gray-800 dark:text-gray-100 break-words truncate">{nomeProgetto || 'Progetto non assegnato'}</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{post.tipoContenuto}</p>
-                    
-                    {post.descrizione && (
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words overflow-hidden line-clamp-2">
-                           {post.descrizione}
+            <div className="flex-grow p-2 flex flex-col min-w-0" onClick={() => onCardClick(post)}>
+                {/* [MODIFICA] Riga superiore con titolo a sx e data a dx */}
+                <div className="flex justify-between items-start gap-2">
+                    <p className="font-bold text-sm text-gray-800 dark:text-gray-100 break-words truncate">
+                        {nomeProgetto || 'Progetto non assegnato'}
+                    </p>
+                    {showDate && post.data && (
+                        <p className="text-xs font-semibold text-red-500 flex-shrink-0">
+                           {format(post.data.toDate(), 'dd MMM yy', { locale: it })}
                         </p>
                     )}
                 </div>
-
-                {showDate && post.data && (
-                    <div className="pt-1 mt-auto border-t border-gray-200 dark:border-gray-700">
-                        <p className="text-xs font-semibold text-red-500">
-                           {format(post.data.toDate(), 'dd MMM yy', { locale: it })}
-                        </p>
-                    </div>
+                
+                <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{post.tipoContenuto}</p>
+                
+                {post.descrizione && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words overflow-hidden line-clamp-2">
+                       {post.descrizione}
+                    </p>
                 )}
             </div>
 
             {/* COLONNA DESTRA: Barra delle Metriche */}
-            {/* [MODIFICA] Aggiunta larghezza fissa per mantenere il layout consistente */}
             <div className="flex flex-col items-center justify-around w-14 p-2 bg-gray-100 dark:bg-gray-900/40 rounded-r-lg rounded-l-none group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors text-xs text-gray-500 dark:text-gray-400">
                 {post.performance && (
                     <>
