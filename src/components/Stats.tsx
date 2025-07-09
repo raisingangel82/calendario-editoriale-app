@@ -105,13 +105,11 @@ const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardCli
     const [sortBy, setSortBy] = useState<SortKey>('views');
     const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
 
-    // [MODIFICA] La lista delle piattaforme disponibili viene ora calcolata
-    // solo in base ai post che hanno effettivamente dati di performance.
     const availablePlatforms = useMemo(() => {
         const platformsWithPerformance = posts
-            .filter(p => p.performance) // Prendi solo i post con dati di performance
-            .map(p => p.piattaforma); // Estrai le loro piattaforme
-        return [...new Set(platformsWithPerformance.filter(Boolean))]; // Crea una lista unica
+            .filter(p => p.performance) 
+            .map(p => p.piattaforma); 
+        return [...new Set(platformsWithPerformance.filter(Boolean))];
     }, [posts]);
 
     const postsConPerformance = useMemo(() => {
@@ -134,7 +132,7 @@ const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardCli
     return (
         <div className="space-y-6">
             <StatCard title="Classifica Performance" icon={Award}>
-                {posts.some(p => p.performance) ? ( // Mostra la UI solo se esiste almeno un post con performance
+                {posts.some(p => p.performance) ? (
                     <div className="space-y-4">
                         <div className="flex items-center flex-wrap gap-2">
                             <span className="text-sm font-semibold text-gray-500">Piattaforma:</span>
@@ -149,8 +147,9 @@ const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardCli
                             ))}
                         </div>
 
-                        <div className="flex items-center flex-wrap gap-2 border-y border-gray-200 dark:border-gray-700 py-3 my-3">
-                            <span className="text-sm font-semibold text-gray-500">Ordina per:</span>
+                        {/* [MODIFICA] Reso il contenitore "flex-wrap" e l'etichetta "Ordina per:" a larghezza piena su mobile */}
+                        <div className="flex flex-wrap items-center gap-2 border-y border-gray-200 dark:border-gray-700 py-3 my-3">
+                            <span className="w-full sm:w-auto text-sm font-semibold text-gray-500 mb-2 sm:mb-0 sm:mr-2">Ordina per:</span>
                             {sortOptions.map(opt => (
                                 <button
                                     key={opt.key}
@@ -201,7 +200,7 @@ export const Stats: React.FC<StatsPageProps> = ({ posts, progetti, activeView, o
         if (activeView === 'produzione') {
             setActionConfig({ icon: BarIcon, onClick: () => onViewChange('performance'), label: 'Passa a Performance' });
         } else {
-            setActionConfig({ icon: PieChart, onClick: () => onViewChange('produzione'), label: 'Passa a Produzione' });
+            setActioneTConfig({ icon: PieChart, onClick: () => onViewChange('produzione'), label: 'Passa a Produzione' });
         }
     }, [activeView, onViewChange, setActionConfig]);
 
