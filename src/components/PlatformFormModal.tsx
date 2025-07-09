@@ -6,13 +6,14 @@ import { useTheme } from '../contexts/ThemeContext';
 interface PlatformFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (platformData: Omit<PlatformData, 'id' | 'icon'>) => void;
+  onSave: (platformData: Omit<PlatformData, 'id' | 'icon' | 'proFeature'>) => void;
   platformToEdit: PlatformData | null;
 }
 
 export const PlatformFormModal: React.FC<PlatformFormModalProps> = ({ isOpen, onClose, onSave, platformToEdit }) => {
   const [name, setName] = useState('');
   const [publishUrl, setPublishUrl] = useState('');
+  const [analyticsUrl, setAnalyticsUrl] = useState(''); // Stato per il nuovo campo
   const { getActiveColor } = useTheme();
 
   useEffect(() => { 
@@ -20,20 +21,21 @@ export const PlatformFormModal: React.FC<PlatformFormModalProps> = ({ isOpen, on
         if (platformToEdit) { 
             setName(platformToEdit.name); 
             setPublishUrl(platformToEdit.publishUrl || ''); 
+            setAnalyticsUrl(platformToEdit.analyticsUrl || ''); // Popola il campo analyticsUrl se in modifica
         } else { 
             setName(''); 
-            setPublishUrl(''); 
+            setPublishUrl('');
+            setAnalyticsUrl('');
         }
     }
   }, [platformToEdit, isOpen]);
   
   const handleSaveClick = () => { 
       if (!name) { 
-          // Sostituito alert con console.error per non bloccare l'UI
           console.error('Il nome della piattaforma è obbligatorio.'); 
           return; 
       } 
-      onSave({ name, publishUrl }); 
+      onSave({ name, publishUrl, analyticsUrl }); // Includi analyticsUrl nei dati salvati
   };
 
   const inputStyle = "w-full p-3 bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-base text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500";
@@ -57,6 +59,12 @@ export const PlatformFormModal: React.FC<PlatformFormModalProps> = ({ isOpen, on
           <label htmlFor="platform-publish-url" className={labelStyle}>URL di Pubblicazione (Opzionale)</label>
           <input id="platform-publish-url" type="text" value={publishUrl} onChange={e => setPublishUrl(e.target.value)} className={inputStyle} placeholder="Es. https://.../new-post"/>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Link diretto per creare un nuovo post sulla piattaforma.</p>
+        </div>
+        {/* NUOVO CAMPO per l'URL di Analytics */}
+        <div>
+          <label htmlFor="platform-analytics-url" className={labelStyle}>URL di Analytics (Opzionale)</label>
+          <input id="platform-analytics-url" type="text" value={analyticsUrl} onChange={e => setAnalyticsUrl(e.target.value)} className={inputStyle} placeholder="Es. https://analytics.piattaforma.com"/>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Link alla pagina da cui scaricare i dati di performance.</p>
         </div>
       </div>
     </BaseModal>

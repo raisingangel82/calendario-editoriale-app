@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { BellRing, Palette, Upload, Download, Settings, SlidersHorizontal, Briefcase, Star } from 'lucide-react';
+import { BellRing, Palette, Upload, Download, Settings, Briefcase, Star } from 'lucide-react';
 import { PlatformManager } from '../components/PlatformManager';
 import { getMessaging, getToken } from "firebase/messaging";
-import { collection, query, where, getDocs, writeBatch, doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { projectColorPalette, type ColorShade } from '../data/colorPalette';
+import type { PlatformData } from '../types';
 
 interface CardProps {
   title: string;
@@ -28,6 +29,10 @@ interface ImpostazioniProps {
     onProjectsClick: () => void;
     workingDays: number[];
     setWorkingDays: (days: number[]) => void;
+    platforms: PlatformData[];
+    onAddPlatform: (data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => void;
+    onUpdatePlatform: (id: string, data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => void;
+    onDeletePlatform: (id: string) => void;
 }
 
 const daysOfWeek = [
@@ -35,7 +40,17 @@ const daysOfWeek = [
     { id: 4, label: 'G' }, { id: 5, label: 'V' }, { id: 6, label: 'S' }, { id: 0, label: 'D' }
 ];
 
-export const Impostazioni: React.FC<ImpostazioniProps> = ({ onImportClick, onExportClick, onProjectsClick, workingDays, setWorkingDays }) => {
+export const Impostazioni: React.FC<ImpostazioniProps> = ({ 
+    onImportClick, 
+    onExportClick, 
+    onProjectsClick, 
+    workingDays, 
+    setWorkingDays,
+    platforms,
+    onAddPlatform,
+    onUpdatePlatform,
+    onDeletePlatform
+}) => {
   const { user } = useAuth();
   const { baseColor, setBaseColor, colorShade, setColorShade, getActiveColor } = useTheme();
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -77,82 +92,74 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({ onImportClick, onExp
   };
   
   return (
-    // FIX: Apply flex-col, h-full, overflow-y-auto to the main container
-    // And add padding-bottom to ensure content above the BottomBar is visible.
-    <div className="flex flex-col h-full overflow-y-auto p-4 sm:p-6 pb-20"> {/* pb-20 to account for BottomBar (h-16 + some extra space) */}
+    <div className="p-4 sm:p-6 pb-24">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Utility e Impostazioni</h1>
       </div>
 
-      {/* This div itself doesn't need specific height/overflow if its parent handles it */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-grow"> {/* Use flex-grow to make it take available space */}
-          <SettingsCard title="Tema e Impostazioni" icon={Palette}>
-            <div className="flex flex-col gap-4">
-                <div>
-                  <div className="grid grid-cols-8 sm:grid-cols-10 gap-2">
-                      {projectColorPalette.map(c => (<button key={c.base} type="button" title={c.name} onClick={() => setBaseColor(c.base)} style={{ backgroundColor: c.shades['700'].hex }} className={`w-8 h-8 rounded-full transition-transform hover:scale-110 ${baseColor === c.base ? `ring-2 ring-offset-2 ring-offset-white dark:ring-offset-gray-800 ring-indigo-500` : ''}`} /> ))}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <SettingsCard title="Tema e Opzioni" icon={Palette}>
+              <div className="flex flex-col gap-4">
+                  <div>
+                    <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Colore Principale</h5>
+                    <div className="grid grid-cols-8 sm:grid-cols-10 gap-2">
+                        {projectColorPalette.map(c => (<button key={c.base} type="button" title={c.name} onClick={() => setBaseColor(c.base)} style={{ backgroundColor: c.shades['700'].hex }} className={`w-8 h-8 rounded-full transition-transform hover:scale-110 ${baseColor === c.base ? `ring-2 ring-offset-2 ring-offset-white dark:ring-offset-gray-800 ring-indigo-500` : ''}`} /> ))}
+                    </div>
                   </div>
-                  <h5 className="font-semibold text-gray-700 dark:text-gray-300 mt-4 mb-2 text-sm">Intensità Colori</h5>
-                  <div className="flex justify-around bg-gray-100 dark:bg-gray-900/50 p-1 rounded-md">
-                      {/* FIX: Aggiunto colore testo per dark mode */}
-                      {(['400', '700', '800'] as ColorShade[]).map(shade => ( <button key={shade} onClick={() => setColorShade(shade)} className={`w-full text-xs py-1 px-2 rounded-md transition-colors ${colorShade === shade ? `${getActiveColor('bg')} text-white font-semibold` : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}> {shade === '400' ? 'Chiara' : shade === '700' ? 'Media' : 'Intensa'} </button>))}
+                  <div>
+                    <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Intensità Colori</h5>
+                    <div className="flex justify-around bg-gray-100 dark:bg-gray-900/50 p-1 rounded-md">
+                        {(['400', '700', '800'] as ColorShade[]).map(shade => ( <button key={shade} onClick={() => setColorShade(shade)} className={`w-full text-xs py-1 px-2 rounded-md transition-colors ${colorShade === shade ? `${getActiveColor('bg')} text-white font-semibold` : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}> {shade === '400' ? 'Chiara' : shade === '700' ? 'Media' : 'Intensa'} </button>))}
+                    </div>
                   </div>
-                </div>
-                <hr className="border-gray-200 dark:border-gray-700" />
-                <div>
-                  <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Giorni Lavorativi</h5>
-                  <div className="flex flex-wrap gap-2">
-                    {/* FIX: Aggiunto colore testo per dark mode */}
-                    {daysOfWeek.map(day => (
-                        <button key={day.id} onClick={() => handleWorkingDaysChange(day.id)} className={`w-10 h-10 rounded-lg font-bold text-sm transition-colors ${workingDays.includes(day.id) ? `${getActiveColor('bg')} text-white` : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>
-                            {day.label}
-                        </button>
-                    ))}
-                  </div>
-                </div>
-                <hr className="border-gray-200 dark:border-gray-700" />
-                <div>
-                  <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Operazioni</h5>
-                  <div className="flex items-center justify-around gap-2">
-                      <button onClick={onProjectsClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
-                          <Settings size={16} />
-                          <span className="hidden sm:inline">Progetti</span>
-                      </button>
-                      <button onClick={onImportClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
-                          <Upload size={16} />
-                          <span className="hidden sm:inline">Importa</span>
-                      </button>
-                      <button 
-                        onClick={onExportClick} 
-                        disabled={user?.plan !== 'pro'}
-                        title={user?.plan !== 'pro' ? "Funzionalità disponibile per gli account Pro" : "Esporta l'intero database"}
-                        className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
-                      >
-                          <Download size={16} />
-                          <span className="hidden sm:inline">Esporta</span>
-                          {/* FIX: Migliorato contrasto badge in dark mode */}
-                          {user?.plan !== 'pro' && (
-                            <span className="ml-1.5 flex items-center gap-1 text-xs font-bold bg-yellow-400 dark:bg-yellow-500 text-yellow-900 px-1.5 py-0.5 rounded-full">
-                                <Star size={12}/>
-                                PRO
-                            </span>
-                          )}
-                      </button>
+                  <div>
+                    <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Giorni Lavorativi</h5>
+                    <div className="flex flex-wrap gap-2">
+                      {daysOfWeek.map(day => (
+                          <button key={day.id} onClick={() => handleWorkingDaysChange(day.id)} className={`w-10 h-10 rounded-lg font-bold text-sm transition-colors ${workingDays.includes(day.id) ? `${getActiveColor('bg')} text-white` : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>
+                              {day.label}
+                          </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <hr className="border-gray-200 dark:border-gray-700" />
-                 <div>
-                    <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Notifiche Push</h5>
+            </SettingsCard>
+
+            <SettingsCard title="Gestione Dati" icon={Briefcase}>
+                <div className="flex items-center justify-around gap-2">
+                    <button onClick={onProjectsClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
+                        <Settings size={16} /> <span className="hidden sm:inline">Progetti</span>
+                    </button>
+                    <button onClick={onImportClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
+                        <Upload size={16} /> <span className="hidden sm:inline">Importa Dati</span>
+                    </button>
+                    <button onClick={onExportClick} disabled={user?.plan !== 'pro'} title={user?.plan !== 'pro' ? "Funzionalità disponibile per gli account Pro" : "Esporta l'intero database"} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
+                        <Download size={16} /> <span className="hidden sm:inline">Esporta Dati</span>
+                        {user?.plan !== 'pro' && (
+                          <span className="ml-1.5 flex items-center gap-1 text-xs font-bold bg-yellow-400 dark:bg-yellow-500 text-yellow-900 px-1.5 py-0.5 rounded-full"><Star size={12}/> PRO</span>
+                        )}
+                    </button>
+                </div>
+            </SettingsCard>
+             <SettingsCard title="Notifiche" icon={BellRing}>
+                <div>
                     <button onClick={handleEnableNotifications} disabled={isSubscribing} className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 disabled:opacity-50">
-                        <BellRing size={18} />
-                        {isSubscribing ? 'Abilitazione...' : 'Abilita Notifiche Browser'}
+                        <BellRing size={18} /> {isSubscribing ? 'Abilitazione...' : 'Abilita Notifiche Browser'}
                     </button>
                     {notificationStatus && <p className="text-xs text-center mt-2 text-gray-500 dark:text-gray-400">{notificationStatus}</p>}
                 </div>
-              </div>
-          </SettingsCard>
-          {/* PlatformManager itself does not need a max-height or overflow if its parent handles it */}
-          <PlatformManager />
+             </SettingsCard>
+          </div>
+          
+          <div className="space-y-6">
+            <PlatformManager 
+                platforms={platforms}
+                onAddPlatform={onAddPlatform}
+                onUpdatePlatform={onUpdatePlatform}
+                onDeletePlatform={onDeletePlatform}
+            />
+          </div>
       </div>
     </div>
   );

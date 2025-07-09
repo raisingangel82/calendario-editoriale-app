@@ -1,40 +1,37 @@
 import React from 'react';
-import { 
-  Instagram, 
-  Video, // Sostituisce TikTok
-  Facebook, 
-  Youtube, 
-  Linkedin, 
-  AtSign, // Sostituisce Threads
-  Twitter, // Sostituisce X
-  HelpCircle 
-} from 'lucide-react';
+import { Facebook, Instagram, Youtube, Sparkles } from 'lucide-react'; 
+import { SiTiktok, SiThreads, SiX } from '@icons-pack/react-simple-icons'; 
 
 interface PlatformIconProps {
-  platform: string;
+  platform?: string;
   className?: string;
 }
 
-export const PlatformIcon: React.FC<PlatformIconProps> = ({ platform, className = "w-5 h-5" }) => {
-  const platformName = platform.toLowerCase();
+export const PlatformIcon: React.FC<PlatformIconProps> = ({ platform, className = "w-6 h-6" }) => {
+    if (!platform) {
+        return <Sparkles size={20} className={className} />;
+    }
 
-  switch (platformName) {
-    case 'instagram':
-      return <Instagram className={className} />;
-    case 'tiktok':
-      return <Video className={className} />; // Icona sostituita
-    case 'facebook':
-      return <Facebook className={className} />;
-    case 'youtube':
-      return <Youtube className={className} />;
-    case 'linkedin':
-      return <Linkedin className={className} />;
-    case 'threads':
-      return <AtSign className={className} />; // Icona sostituita
-    case 'x':
-    case 'twitter':
-      return <Twitter className={className} />; // Icona sostituita
-    default:
-      return <HelpCircle className={className} />;
-  }
+    const platformName = platform.toLowerCase();
+    const commonProps = { size: 20, className };
+
+    switch (platformName) {
+        case 'facebook':
+            return <Facebook {...commonProps} />;
+        // [CORREZIONE] Associata l'icona corretta a Instagram
+        case 'instagram':
+            return <Instagram {...commonProps} />;
+        case 'youtube':
+            return <Youtube {...commonProps} />;
+        case 'tiktok':
+            return <SiTiktok {...commonProps} />;
+        // [CORREZIONE] Associata l'icona corretta a Twitter/X
+        case 'x':
+        case 'twitter':
+            return <SiX {...commonProps} />;
+        case 'threads':
+            return <SiThreads {...commonProps} />;
+        default:
+            return <Sparkles {...commonProps} />;
+    }
 };

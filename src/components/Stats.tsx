@@ -1,85 +1,228 @@
-import React, { useMemo } from 'react';
-// Rimosse le importazioni di Swiper
-// import { Swiper, SwiperSlide } from 'swiper/react';
-// import { Pagination } from 'swiper/modules';
-// import 'swiper/css';
-// import 'swiper/css/pagination';
-
-import { CheckCircle, Clock, BookOpen, BarChart2 as BarIcon } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BarChart2 as BarIcon, PieChart, CheckCircle, Clock, Award, Eye, Heart, MessageSquare } from 'lucide-react';
 import type { Post, Progetto, Categoria } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
-import { useBreakpoint } from '../hooks/useBreakpoint';
-import { getColor } from '../data/colorPalette';
+import { getColor, projectColorPalette } from '../data/colorPalette';
+import { ContenutoCard } from './ContenutoCard';
+import { PlatformIcon } from './PlatformIcon';
+
+interface StatsPageProps {
+    posts: Post[];
+    progetti: Progetto[];
+    activeView: 'produzione' | 'performance';
+    onViewChange: (view: 'produzione' | 'performance') => void;
+    setActionConfig: (config: { icon: React.ElementType; onClick: () => void; label: string; }) => void;
+    onCardClick: (post: Post) => void;
+    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
+}
+
+type SortKey = 'views' | 'likes' | 'comments';
 
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipo = (tipoContenuto || "").toLowerCase();
-    if (tipo.includes('testo')) return 'Testo';
-    if (['reel', 'video'].some(term => tipo.includes(term))) return 'Video';
-    if (['immagine', 'carousel'].some(term => tipo.includes(term))) return 'Immagine';
+    if (['reel', 'video', 'vlog'].some(term => tipo.includes(term))) return 'Video';
+    if (['immagine', 'carousel', 'grafica'].some(term => tipo.includes(term))) return 'Immagine';
     return 'Testo';
 };
 
-export const Stats: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ posts, progetti }) => {
-    const { colorShade, baseColor } = useTheme();
-    const isDesktop = useBreakpoint();
+const FilterPill: React.FC<{ label: string | React.ReactNode; isActive: boolean; onClick: () => void; colorClass?: string; }> = ({ label, isActive, onClick, colorClass }) => {
+    const { getActiveColor } = useTheme();
+    const activeClasses = colorClass ? `${colorClass} text-white font-bold` : `${getActiveColor('bg')} text-white font-bold`;
+    const inactiveClasses = 'bg-white dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600';
+    return <button onClick={onClick} className={`px-4 py-2 rounded-full text-sm font-semibold transition-all shadow-sm border border-gray-200 dark:border-gray-700 whitespace-nowrap ${isActive ? activeClasses : inactiveClasses}`}>{label}</button>;
+};
 
-    const stats = useMemo(() => {
-        const totaliPerCategoria: Record<Categoria, number> = { Video: 0, Immagine: 0, Testo: 0 };
-        const creatiPerCategoria: Record<Categoria, number> = { Video: 0, Immagine: 0, Testo: 0 };
-        const totaliPerProgetto: Record<string, { totali: number; creati: number }> = {};
-        
-        progetti.forEach(p => { totaliPerProgetto[p.id] = { totali: 0, creati: 0 }; });
+const StatCard: React.FC<{ title: string; icon: React.ElementType; children: React.ReactNode; className?: string }> = ({ title, icon: Icon, children, className }) => (
+    <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 animate-fade-in ${className}`}>
+        <h3 className="font-bold text-lg text-gray-800 dark:text-gray-200 flex items-center gap-3 mb-4"><Icon size={20}/> {title}</h3>
+        {children}
+    </div>
+);
 
-        posts.forEach(post => {
-            if (post.projectId && totaliPerProgetto[post.projectId]) {
-                totaliPerProgetto[post.projectId].totali++;
-                if (post.statoProdotto) totaliPerProgetto[post.projectId].creati++;
-            }
-            const categoria = getCategoriaGenerica(post.tipoContenuto);
-            if (totaliPerCategoria.hasOwnProperty(categoria)) {
-                totaliPerCategoria[categoria]++;
-                if (post.statoProdotto) creatiPerCategoria[categoria]++;
-            }
-        });
-        const totalProdotti = posts.filter(p => p.statoProdotto).length;
-        return { totaliPerCategoria, creatiPerCategoria, totaliPerProgetto, totaliCreati: totalProdotti, totalPost: posts.length };
-    }, [posts, progetti]);
+const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ posts, progetti }) => {
+    const [activeProjectId, setActiveProjectId] = useState<string>('all');
+    const { baseColor, colorShade } = useTheme();
 
-    const activeColor = getColor(baseColor, colorShade).bgClass;
+    const statsGenerali = useMemo(() => {
+        const creati = posts.filter(p => p.statoProdotto).length;
+        return { creati, daCreare: posts.length - creati };
+    }, [posts]);
 
-    const ProduzioneProgetto = () => (
-        <div className="p-6 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-            <h3 className="font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 mb-4"><BookOpen size={18}/> Produzione per Progetto</h3>
-            <div className="space-y-3">{progetti.map(proj => { const data = stats.totaliPerProgetto[proj.id] || { totali: 0, creati: 0 }; const p = data.totali > 0 ? (data.creati / data.totali) * 100 : 0; const barColor = getColor(proj.color, colorShade).bgClass; return ( <div key={proj.id}><div className="flex justify-between text-sm mb-1"><span className="font-semibold text-gray-700 dark:text-gray-300">{proj.nome}</span><span className="text-gray-500 dark:text-gray-400">{data.creati}/{data.totali}</span></div><div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2"><div className={`h-2 rounded-full ${barColor}`} style={{ width: `${p}%` }}></div></div></div> ); })}</div>
-        </div>
-    );
-    const ProduzioneCategoria = () => (
-        <div className="p-6 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-             <h3 className="font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 mb-4"><BarIcon size={18}/> Produzione per Categoria</h3>
-             <div className="space-y-3">{(['Testo', 'Immagine', 'Video'] as Categoria[]).map(cat => { const tot = stats.totaliPerCategoria[cat]; const cre = stats.creatiPerCategoria[cat]; const p = tot > 0 ? (cre / tot) * 100 : 0; return ( <div key={cat}><div className="flex justify-between text-sm mb-1"><span className="font-semibold text-gray-700 dark:text-gray-300">{cat}</span><span className="text-gray-500 dark:text-gray-400">{cre}/{tot}</span></div><div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2"><div className={`h-2 rounded-full ${activeColor}`} style={{ width: `${p}%` }}></div></div></div> ); })}</div>
-        </div>
-    );
-    const Riepilogo = () => (
-        <div className="p-6 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700">
-            <h3 className="font-bold text-gray-800 dark:text-gray-200 mb-4">Riepilogo Generale</h3>
-            <div className="space-y-4"><div className="flex justify-between items-center text-lg"><span className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2"><CheckCircle size={18} className="text-green-500" /> Creati</span><span className="font-bold text-gray-900 dark:text-gray-100">{stats.totaliCreati}</span></div><div className="flex justify-between items-center text-lg"><span className="font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2"><Clock size={18} className="text-amber-500"/> Da Creare</span><span className="font-bold text-gray-900 dark:text-gray-100">{stats.totalPost - stats.totaliCreati}</span></div><div className="flex justify-between items-center text-lg pt-4 border-t border-gray-200 dark:border-gray-700"><span className="font-semibold text-gray-700 dark:text-gray-300">Totale Post</span><span className="font-bold text-gray-900 dark:text-gray-100">{stats.totalPost}</span></div></div>
-        </div>
-    );
+    const statsProgettoSelezionato = useMemo(() => {
+        if (activeProjectId === 'all') return null;
+        const progetto = progetti.find(p => p.id === activeProjectId);
+        if (!progetto) return null;
+        const postsDelProgetto = posts.filter(p => p.projectId === activeProjectId && p.statoProdotto);
+        const totali = postsDelProgetto.length;
+        const perCategoria: Record<Categoria, number> = { Testo: 0, Immagine: 0, Video: 0 };
+        postsDelProgetto.forEach(p => { perCategoria[getCategoriaGenerica(p.tipoContenuto)]++; });
+        return { nome: progetto.nome, totali, perCategoria, color: progetto.color };
+    }, [activeProjectId, posts, progetti]);
 
-    if (isDesktop) {
-        return (
-            <div className="p-4 sm:p-6"><h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6">Statistiche</h1><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"><ProduzioneProgetto /><ProduzioneCategoria /><Riepilogo /></div></div>
-        );
-    }
-    
-    // ▼▼▼ MODIFICA: Layout mobile riscritto senza Swiper ▼▼▼
     return (
-        <div className="p-4">
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">Statistiche</h1>
-            <div className="space-y-4">
-                <ProduzioneProgetto />
-                <ProduzioneCategoria />
-                <Riepilogo />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <StatCard title="Riepilogo Generale" icon={PieChart}>
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center"><span className="text-sm font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-2"><CheckCircle size={16} className="text-green-500" /> Contenuti Creati</span><span className="text-xl font-bold text-gray-900 dark:text-gray-100">{statsGenerali.creati}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-sm font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Clock size={16} className="text-amber-500"/> Da Creare</span><span className="text-xl font-bold text-gray-900 dark:text-gray-100">{statsGenerali.daCreare}</span></div>
+                </div>
+            </StatCard>
+            <StatCard title="Analisi per Progetto" icon={BarIcon}>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Seleziona un progetto per visualizzare i dettagli della produzione.</p>
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                    <FilterPill label="Nessun filtro" isActive={activeProjectId === 'all'} onClick={() => setActiveProjectId('all')} />
+                    {progetti.map(proj => {
+                        const colorInfo = projectColorPalette.find(p => p.base === proj.color);
+                        const bgColor = colorInfo?.shades['700'].bgClass || 'bg-gray-500';
+                        return <FilterPill key={proj.id} label={proj.nome} isActive={activeProjectId === proj.id} onClick={() => setActiveProjectId(proj.id)} colorClass={bgColor} />
+                    })}
+                </div>
+                {activeProjectId !== 'all' && (
+                    statsProgettoSelezionato ? (
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                            <div className="space-y-3">
+                                {(['Testo', 'Immagine', 'Video'] as Categoria[]).map(cat => {
+                                    const count = statsProgettoSelezionato.perCategoria[cat];
+                                    const percentage = statsProgettoSelezionato.totali > 0 ? (count / statsProgettoSelezionato.totali) * 100 : 0;
+                                    const barColor = getColor(statsProgettoSelezionato.color || baseColor, colorShade).bgClass;
+                                    return (
+                                        <div key={cat}>
+                                            <div className="flex justify-between text-sm mb-1"><span className="font-semibold text-gray-700 dark:text-gray-300">{cat}</span><span className="text-gray-500 dark:text-gray-400">{count} / {statsProgettoSelezionato.totali}</span></div>
+                                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5"><div className={`h-2.5 rounded-full ${barColor}`} style={{ width: `${percentage}%` }}></div></div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : <p className="text-sm text-center text-gray-500 dark:text-gray-400 pt-4 border-t border-gray-200 dark:border-gray-700">Caricamento dati progetto...</p>
+                )}
+            </StatCard>
+        </div>
+    );
+};
+
+const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardClick: (post:Post) => void, onStatusChange: (id: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void }> = ({ posts, progetti, onCardClick, onStatusChange }) => {
+    const [sortBy, setSortBy] = useState<SortKey>('views');
+    const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+
+    // [MODIFICA] La lista delle piattaforme disponibili viene ora calcolata
+    // solo in base ai post che hanno effettivamente dati di performance.
+    const availablePlatforms = useMemo(() => {
+        const platformsWithPerformance = posts
+            .filter(p => p.performance) // Prendi solo i post con dati di performance
+            .map(p => p.piattaforma); // Estrai le loro piattaforme
+        return [...new Set(platformsWithPerformance.filter(Boolean))]; // Crea una lista unica
+    }, [posts]);
+
+    const postsConPerformance = useMemo(() => {
+        const platformFiltered = selectedPlatform 
+            ? posts.filter(p => p.piattaforma === selectedPlatform)
+            : posts;
+
+        return platformFiltered
+            .filter(p => p.performance)
+            .sort((a, b) => (b.performance?.[sortBy] || 0) - (a.performance?.[sortBy] || 0));
+            
+    }, [posts, sortBy, selectedPlatform]);
+
+    const sortOptions: { key: SortKey; label: string; icon: React.ElementType }[] = [
+        { key: 'views', label: 'Visualizzazioni', icon: Eye },
+        { key: 'likes', label: 'Mi Piace', icon: Heart },
+        { key: 'comments', label: 'Commenti', icon: MessageSquare },
+    ];
+
+    return (
+        <div className="space-y-6">
+            <StatCard title="Classifica Performance" icon={Award}>
+                {posts.some(p => p.performance) ? ( // Mostra la UI solo se esiste almeno un post con performance
+                    <div className="space-y-4">
+                        <div className="flex items-center flex-wrap gap-2">
+                            <span className="text-sm font-semibold text-gray-500">Piattaforma:</span>
+                            <FilterPill label="Tutte" isActive={selectedPlatform === null} onClick={() => setSelectedPlatform(null)} />
+                            {availablePlatforms.map(platform => (
+                                <FilterPill 
+                                    key={platform}
+                                    label={<PlatformIcon platform={platform} className="w-5 h-5"/>} 
+                                    isActive={selectedPlatform === platform} 
+                                    onClick={() => setSelectedPlatform(platform)}
+                                />
+                            ))}
+                        </div>
+
+                        <div className="flex items-center flex-wrap gap-2 border-y border-gray-200 dark:border-gray-700 py-3 my-3">
+                            <span className="text-sm font-semibold text-gray-500">Ordina per:</span>
+                            {sortOptions.map(opt => (
+                                <button
+                                    key={opt.key}
+                                    onClick={() => setSortBy(opt.key)}
+                                    className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${sortBy === opt.key ? 'bg-blue-500 text-white shadow-md' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+                                >
+                                    <opt.icon size={14} />
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        
+                        <div className="flex flex-col gap-4">
+                           {postsConPerformance.slice(0, 10).map((post, index) => {
+                                const progettoDelPost = progetti.find(p => p.id === post.projectId);
+                                return (
+                                    <div key={post.id} className="flex items-center gap-4 animate-fade-in">
+                                        <span className="text-xl font-bold text-gray-400 dark:text-gray-500 w-8 text-center">{index + 1}</span>
+                                        <div className="flex-grow">
+                                            <ContenutoCard
+                                                post={post}
+                                                nomeProgetto={progettoDelPost?.nome}
+                                                projectColor={progettoDelPost?.color}
+                                                onCardClick={onCardClick}
+                                                onStatusChange={onStatusChange}
+                                                isDraggable={false}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
+                        Nessun dato di performance trovato. <br />
+                        Vai su Impostazioni per importare un file .csv e iniziare.
+                    </p>
+                )}
+            </StatCard>
+        </div>
+    );
+};
+
+export const Stats: React.FC<StatsPageProps> = ({ posts, progetti, activeView, onViewChange, setActionConfig, onCardClick, onStatusChange }) => {
+    
+    useEffect(() => {
+        if (activeView === 'produzione') {
+            setActionConfig({ icon: BarIcon, onClick: () => onViewChange('performance'), label: 'Passa a Performance' });
+        } else {
+            setActionConfig({ icon: PieChart, onClick: () => onViewChange('produzione'), label: 'Passa a Produzione' });
+        }
+    }, [activeView, onViewChange, setActionConfig]);
+
+    return (
+        <div className="h-full flex flex-col">
+            <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+                <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
+                    Statistiche di {activeView === 'produzione' ? 'Produzione' : 'Performance'}
+                </h1>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto p-4 sm:p-6 pb-20">
+                {activeView === 'produzione' && <ProduzioneView posts={posts} progetti={progetti} />}
+                {activeView === 'performance' && (
+                    <PerformanceView 
+                        posts={posts}
+                        progetti={progetti}
+                        onCardClick={onCardClick}
+                        onStatusChange={onStatusChange}
+                    />
+                )}
             </div>
         </div>
     );

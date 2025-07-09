@@ -46,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ actionConfig }) => {
         onClick={onClick}
         title={label}
         aria-label={label}
-        className={`absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center justify-center text-white rounded-full w-16 h-16 shadow-lg transition-all ${getActiveColor('bg')} hover:${getActiveColor('bg', '600')} border-4 border-gray-50 dark:border-gray-900 disabled:bg-gray-400`}
+        className={`absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center justify-center text-white rounded-full w-16 h-16 shadow-lg transition-all ${getActiveColor('bg')} hover:opacity-90 border-4 border-white dark:border-gray-900 disabled:bg-gray-400`}
         disabled={label === 'Nessuna Azione'}
       >
         <ActionIcon size={32} />
