@@ -200,7 +200,7 @@ export const Stats: React.FC<StatsPageProps> = ({ posts, progetti, activeView, o
         if (activeView === 'produzione') {
             setActionConfig({ icon: BarIcon, onClick: () => onViewChange('performance'), label: 'Passa a Performance' });
         } else {
-            setActioneTConfig({ icon: PieChart, onClick: () => onViewChange('produzione'), label: 'Passa a Produzione' });
+            setActionConfig({ icon: PieChart, onClick: () => onViewChange('produzione'), label: 'Passa a Produzione' });
         }
     }, [activeView, onViewChange, setActionConfig]);
 
