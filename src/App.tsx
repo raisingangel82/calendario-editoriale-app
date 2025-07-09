@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { db, auth } from './firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { signOut, type User } from 'firebase/auth';
 import { Plus, Download, UploadCloud } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { it } from 'date-fns/locale';
+import Papa from 'papaparse';
 
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useBreakpoint } from './hooks/useBreakpoint';
-import { processAndMatchAnalytics } from './services/AnalyticsMatcher'; // Importa il nuovo servizio
+import { processAndMatchAnalytics } from './services/AnalyticsMatcher'; 
 
 import { Sidebar } from './components/Sidebar';
 import { BottomBar } from './components/BottomBar';
@@ -189,7 +190,7 @@ function MainLayout() {
   };
   
   const handleExportDatabase = () => {
-    const dataToExport = { posts: posts, progetti: progetti, platforms: platforms };
+    const dataToExport = { posts, progetti, platforms };
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(dataToExport, null, 2))}`;
     const link = document.createElement("a");
     link.href = jsonString;
@@ -204,19 +205,18 @@ function MainLayout() {
   const handleUpdateProject = async (id: string, data: any) => await updateDoc(doc(db, "progetti", id), data);
   const handleDeleteProject = async (id: string) => await deleteDoc(doc(db, 'progetti', id));
 
-  const handleAddPlatform = async (data: Omit<PlatformData, 'id' | 'icon' | 'proFeature'>) => {
-    if(user) await addDoc(collection(db, 'platforms'), { ...data, userId: user.uid });
+  const handleAddPlatform = async (data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => {
+    if(user) await addDoc(collection(db, 'platforms'), { ...data, userId: user.uid, iconName: 'Sparkles' });
   };
-  const handleUpdatePlatform = async (id: string, data: Omit<PlatformData, 'id' | 'icon' | 'proFeature'>) => {
+  const handleUpdatePlatform = async (id: string, data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => {
     await updateDoc(doc(db, "platforms", id), data);
   };
   const handleDeletePlatform = async (id: string) => {
     await deleteDoc(doc(db, 'platforms', id));
   };
 
-  const handleAnalyticsImport = async (parsedData: any[], platformName: string): Promise<number> => {
-    // Delega tutta la logica complessa al nuovo servizio di matching
-    return await processAndMatchAnalytics(parsedData, platformName, posts);
+  const handleAnalyticsImport = (parsedData: any[], platformName: string): Promise<number | void> => {
+    return processAndMatchAnalytics(parsedData, platformName, posts);
   };
   
   if (loadingData) return <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-gray-900"><p className="dark:text-white">Caricamento dati...</p></div>;
@@ -234,6 +234,8 @@ function MainLayout() {
                 activeView={statsActiveView}
                 onViewChange={setStatsActiveView}
                 setActionConfig={setActionConfig}
+                onCardClick={setSelectedPost}
+                onStatusChange={handleStatusChange}
               />
             } 
           />
@@ -273,7 +275,16 @@ function MainLayout() {
       
       {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModals} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
       {isImportModalOpen && (<ImportModal onClose={handleCloseModals} onImport={handleImport} />)}
-      {isProjectModalOpen && ( <ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} /> )}
+      {isProjectModalOpen && ( 
+        <ProjectManagerModal 
+            onClose={() => setIsProjectModalOpen(false)} 
+            progetti={progetti} 
+            user={user}
+            onAddProject={handleAddProject} 
+            onUpdateProject={handleUpdateProject} 
+            onDeleteProject={handleDeleteProject} 
+        /> 
+      )}
       <ExportModal 
           isOpen={isExportModalOpen}
           onClose={handleCloseModals}

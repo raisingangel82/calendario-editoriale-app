@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BellRing, Palette, Upload, Download, Settings, Briefcase, Star } from 'lucide-react';
+import { BellRing, Palette, Upload, Download, Settings, SlidersHorizontal, Briefcase, Star } from 'lucide-react';
 import { PlatformManager } from '../components/PlatformManager';
 import { getMessaging, getToken } from "firebase/messaging";
 import { doc, setDoc } from 'firebase/firestore';
@@ -134,6 +134,7 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
                     <button onClick={onImportClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
                         <Upload size={16} /> <span className="hidden sm:inline">Importa Dati</span>
                     </button>
+                    {/* FIX: Aggiunta la prop onExportClick al pulsante */}
                     <button onClick={onExportClick} disabled={user?.plan !== 'pro'} title={user?.plan !== 'pro' ? "Funzionalità disponibile per gli account Pro" : "Esporta l'intero database"} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
                         <Download size={16} /> <span className="hidden sm:inline">Esporta Dati</span>
                         {user?.plan !== 'pro' && (

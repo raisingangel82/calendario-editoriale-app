@@ -39,14 +39,11 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
     const prodottoClass = post.statoProdotto ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600';
     const pubblicatoClass = post.statoPubblicato ? 'text-green-500' : 'text-gray-300 dark:text-gray-600';
 
-    // [MODIFICA] Determina la lunghezza dell'estratto in base alla visualizzazione
-    const excerptLength = isMobileView ? 100 : 50;
-
     return (
         <div 
             ref={setNodeRef} 
             style={{ ...style, ...borderStyle }}
-            className="flex w-full items-stretch bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all group"
+            className="flex w-full h-24 items-stretch bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all group"
         >
             {/* COLONNA SINISTRA: Maniglia e Azioni */}
             <div 
@@ -54,11 +51,11 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
                 {...listeners} 
                 className={`flex flex-col items-center justify-between p-2 space-y-1 bg-gray-100 dark:bg-gray-900/40 rounded-l-lg rounded-r-none ${isDraggable ? 'cursor-grab' : ''} group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors`}
             >
-                <div onClick={() => onCardClick(post)} className="cursor-pointer pt-1">
-                    <PlatformIcon platform={post.piattaforma} className="w-6 h-6 text-gray-700 dark:text-gray-300"/>
+                <div onClick={() => onCardClick(post)} className="cursor-pointer">
+                    <PlatformIcon platform={post.piattaforma} className="w-5 h-5 text-gray-700 dark:text-gray-300"/>
                 </div>
                 <GripVertical size={16} className="text-gray-400 dark:text-gray-500" />
-                <div className="flex flex-col gap-1.5 pb-1">
+                <div className="flex flex-col gap-1">
                     <button onClick={(e) => handleStatusClick(e, 'statoProdotto', post.statoProdotto)} title="Prodotto" className={`transition-colors hover:text-amber-500 ${prodottoClass}`}>
                         <Clock size={14} />
                     </button>
@@ -69,48 +66,48 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
             </div>
 
             {/* COLONNA CENTRALE: Contenuto Principale */}
-            <div className="flex-grow p-3 flex flex-col justify-between min-w-0" onClick={() => onCardClick(post)}>
+            <div className="flex-grow p-2 flex flex-col justify-between min-w-0" onClick={() => onCardClick(post)}>
                 <div>
-                    <p className="font-bold text-sm text-gray-800 dark:text-gray-100 break-words">{nomeProgetto || 'Progetto non assegnato'}</p>
+                    <p className="font-bold text-sm text-gray-800 dark:text-gray-100 break-words truncate">{nomeProgetto || 'Progetto non assegnato'}</p>
                     <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{post.tipoContenuto}</p>
                     
                     {post.descrizione && (
-                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 break-words">
-                           {/* [MODIFICA] Applica la lunghezza dinamica dell'estratto */}
-                           {post.descrizione.substring(0, excerptLength)}{post.descrizione.length > excerptLength ? '...' : ''}
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words overflow-hidden line-clamp-2">
+                           {post.descrizione}
                         </p>
                     )}
                 </div>
 
                 {showDate && post.data && (
-                    <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div className="pt-1 mt-auto border-t border-gray-200 dark:border-gray-700">
                         <p className="text-xs font-semibold text-red-500">
-                           Scadenza: {format(post.data.toDate(), 'dd MMM yy', { locale: it })}
+                           {format(post.data.toDate(), 'dd MMM yy', { locale: it })}
                         </p>
                     </div>
                 )}
             </div>
 
             {/* COLONNA DESTRA: Barra delle Metriche */}
-            <div className="flex flex-col items-center justify-around p-2 bg-gray-100 dark:bg-gray-900/40 rounded-r-lg rounded-l-none group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors text-xs text-gray-500 dark:text-gray-400">
+            {/* [MODIFICA] Aggiunta larghezza fissa per mantenere il layout consistente */}
+            <div className="flex flex-col items-center justify-around w-14 p-2 bg-gray-100 dark:bg-gray-900/40 rounded-r-lg rounded-l-none group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors text-xs text-gray-500 dark:text-gray-400">
                 {post.performance && (
                     <>
                         {post.performance.views > 0 && (
                             <div className="flex flex-col items-center">
-                                <Eye size={16} />
-                                <span>{post.performance.views}</span>
+                                <Eye size={14} />
+                                <span className="text-[10px]">{post.performance.views}</span>
                             </div>
                         )}
                         {post.performance.likes > 0 && (
                             <div className="flex flex-col items-center">
-                                <Heart size={16} />
-                                <span>{post.performance.likes}</span>
+                                <Heart size={14} />
+                                <span className="text-[10px]">{post.performance.likes}</span>
                             </div>
                         )}
                         {post.performance.comments > 0 && (
                             <div className="flex flex-col items-center">
-                                <MessageSquare size={16} />
-                                <span>{post.performance.comments}</span>
+                                <MessageSquare size={14} />
+                                <span className="text-[10px]">{post.performance.comments}</span>
                             </div>
                         )}
                     </>
