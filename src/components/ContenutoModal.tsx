@@ -42,14 +42,20 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   const [primoCommento, setPrimoCommento] = useState('');
   const [urlMedia, setUrlMedia] = useState('');
   const [data, setData] = useState('');
-  const [isProdotto, setIsProdotto] = useState(false);
+  const [isProdotto, setIsProdotto] = useState(false); // RIPRISTINATO
   const [isPubblicato, setIsPubblicato] = useState(false);
+  const [isMontato, setIsMontato] = useState(false);
 
   const prevPostIdRef = useRef<string | undefined>();
 
   const selectedPlatform = useMemo(() => {
     return availablePlatforms.find(p => p.name === piattaforma);
   }, [piattaforma, availablePlatforms]);
+
+  const showMontatoTick = useMemo(() => {
+    const mediaTypes = ["Immagine/Carosello", "Reel", "Booktrailer", "Podcast", "Vlog"];
+    return mediaTypes.includes(tipoContenuto);
+  }, [tipoContenuto]);
 
   useEffect(() => {
     if (post?.id !== prevPostIdRef.current) {
@@ -61,12 +67,14 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
           setPrimoCommento(post.primoCommento || '');
           setUrlMedia(post.urlMedia || '');
           setData(post.data ? formatDateFns(post.data.toDate(), "yyyy-MM-dd'T'HH:mm") : "");
-          setIsProdotto(post.statoProdotto || false);
+          setIsProdotto(post.statoProdotto || false); // RIPRISTINATO
           setIsPubblicato(post.statoPubblicato || false);
+          setIsMontato(post.statoMontato || false);
       } else {
           setProjectId(progetti.length > 0 ? progetti[0].id : '');
           setPiattaforma(availablePlatforms.length > 0 ? availablePlatforms[0].name : '');
-          setTipoContenuto(''); setDescrizione(''); setPrimoCommento(''); setUrlMedia(''); setData(''); setIsProdotto(false); setIsPubblicato(false);
+          setTipoContenuto(''); setDescrizione(''); setPrimoCommento(''); setUrlMedia(''); setData(''); 
+          setIsProdotto(false); setIsPubblicato(false); setIsMontato(false);
       }
       setCurrentPage(0);
       prevPostIdRef.current = post?.id;
@@ -96,12 +104,20 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   
   const handleProdottoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setIsProdotto(e.target.checked);
-    if (!e.target.checked) setIsPubblicato(false);
+    if (!e.target.checked) {
+      setIsMontato(false);
+      setIsPubblicato(false);
+    }
   };
-
+  
   const handlePubblicatoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setIsPubblicato(e.target.checked);
-    if (e.target.checked) setIsProdotto(true);
+    if (e.target.checked) {
+      setIsProdotto(true);
+      if (showMontatoTick) {
+        setIsMontato(true);
+      }
+    }
   };
 
   const handleSaveChanges = () => {
@@ -112,7 +128,9 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     const dataToSave: any = {
       projectId, piattaforma, tipoContenuto, descrizione, primoCommento, urlMedia,
       data: data ? parseISO(data) : new Date(),
-      statoProdotto: isProdotto, statoPubblicato: isPubblicato,
+      statoProdotto: isProdotto, // RIPRISTINATO
+      statoPubblicato: isPubblicato,
+      statoMontato: isMontato,
     };
     onSave(dataToSave);
   };
@@ -125,39 +143,19 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
 
   const footerContent = (
     <div className="flex w-full flex-wrap items-center justify-center sm:justify-between gap-4">
-      {/* Gruppo Azioni Sinistra */}
-      {/* *** CORREZIONE: Aggiunto justify-around per mobile e rimosso gap per desktop (sm:gap-2) *** */}
       <div className="flex items-center justify-around sm:justify-start w-full sm:w-auto order-2 sm:order-1 sm:gap-2">
         {isEditMode && <button onClick={handleDelete} className="p-3 bg-red-600/10 text-red-600 rounded-lg hover:bg-red-600/20 transition-colors" title="Elimina Post"><Trash2 size={20} /></button>}
         {isEditMode && <button onClick={handleDuplicate} disabled={user?.plan !== 'pro'} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50" title="Duplica Post (Pro)"><Copy size={20} /></button>}
-        
-        {/* Separatore visibile solo su desktop */}
         <div className="hidden sm:block h-6 w-px bg-gray-300 dark:bg-slate-600"></div>
-        
         <button onClick={() => window.open(userCloudServiceUrl, '_blank')} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors" title="Apri il servizio cloud"><Cloud size={20} /></button>
         <button onClick={() => urlMedia && window.open(urlMedia, '_blank')} disabled={!urlMedia} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Apri il link del media"><ExternalLink size={20} /></button>
-        
-        {/* Separatore visibile solo su desktop */}
         <div className="hidden sm:block h-6 w-px bg-gray-300 dark:bg-slate-600"></div>
-
-        <button 
-          onClick={() => selectedPlatform?.publishUrl && window.open(selectedPlatform.publishUrl, '_blank')} 
-          disabled={!selectedPlatform?.publishUrl} 
-          className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
-          title={selectedPlatform?.publishUrl ? `Pubblica su ${selectedPlatform.name}` : 'Nessun link di pubblicazione per questa piattaforma'}
-        >
-          <Send size={20} />
-        </button>
+        <button onClick={() => selectedPlatform?.publishUrl && window.open(selectedPlatform.publishUrl, '_blank')} disabled={!selectedPlatform?.publishUrl} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title={selectedPlatform?.publishUrl ? `Pubblica su ${selectedPlatform.name}` : 'Nessun link di pubblicazione per questa piattaforma'}><Send size={20} /></button>
       </div>
-
-      {/* Paginazione */}
       <div className="flex items-center gap-2 order-1 sm:order-2 w-full justify-center sm:w-auto sm:absolute sm:left-1/2 sm:-translate-x-1/2">
         {[0, 1, 2].map(pageIndex => (<button key={pageIndex} onClick={() => setCurrentPage(pageIndex)} className={`h-2 rounded-full transition-all ${currentPage === pageIndex ? 'w-6' : 'w-2'}`} style={{ backgroundColor: currentPage === pageIndex ? getActiveColorHex() : '#9ca3af' }} />))}
       </div>
-      
-      {/* Gruppo Navigazione Destra */}
       <div className="flex items-center gap-3 order-3 w-full sm:w-auto">
-        {/* *** CORREZIONE: Aggiunto flex-1 al pulsante Indietro per mobile *** */}
         {currentPage > 0 && <button onClick={() => setCurrentPage(currentPage - 1)} className="flex-1 sm:flex-none px-6 py-3 text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-slate-600 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors flex items-center justify-center gap-2"> <ArrowLeft size={18} /> Indietro</button>}
         {currentPage < 2 ? 
           <button onClick={() => setCurrentPage(currentPage + 1)} className={`flex-1 px-6 py-3 text-base font-medium text-white rounded-lg transition-colors ${getActiveColor('bg')} hover:opacity-90 flex items-center gap-2 justify-center`}>Avanti <ArrowRight size={18} /></button>
@@ -199,8 +197,20 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
             <div className="pt-4">
               <label className={labelStyle}>Stato</label>
               <div className="space-y-3">
-                <label className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-slate-700/50 rounded-lg cursor-pointer"><input type="checkbox" checked={isProdotto} onChange={handleProdottoChange} className="h-5 w-5 rounded-sm border-gray-300 dark:border-slate-600 bg-transparent text-blue-600 focus:ring-blue-500" /><span className="font-medium text-gray-800 dark:text-gray-200">Prodotto</span></label>
-                <label className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-slate-700/50 rounded-lg cursor-pointer"><input type="checkbox" checked={isPubblicato} onChange={handlePubblicatoChange} className="h-5 w-5 rounded-sm border-gray-300 dark:border-slate-600 bg-transparent text-blue-600 focus:ring-blue-500" /><span className="font-medium text-gray-800 dark:text-gray-200">Pubblicato</span></label>
+                <label className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-slate-700/50 rounded-lg cursor-pointer">
+                  <input type="checkbox" checked={isProdotto} onChange={handleProdottoChange} className="h-5 w-5 rounded-sm border-gray-300 dark:border-slate-600 bg-transparent text-blue-600 focus:ring-blue-500" />
+                  <span className="font-medium text-gray-800 dark:text-gray-200">Creato</span>
+                </label>
+                {showMontatoTick && (
+                  <label className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-slate-700/50 rounded-lg cursor-pointer">
+                    <input type="checkbox" checked={isMontato} onChange={e => setIsMontato(e.target.checked)} className="h-5 w-5 rounded-sm border-gray-300 dark:border-slate-600 bg-transparent text-blue-600 focus:ring-blue-500" />
+                    <span className="font-medium text-gray-800 dark:text-gray-200">Montato</span>
+                  </label>
+                )}
+                <label className="flex items-center gap-3 p-3 bg-gray-100 dark:bg-slate-700/50 rounded-lg cursor-pointer">
+                  <input type="checkbox" checked={isPubblicato} onChange={handlePubblicatoChange} className="h-5 w-5 rounded-sm border-gray-300 dark:border-slate-600 bg-transparent text-blue-600 focus:ring-blue-500" />
+                  <span className="font-medium text-gray-800 dark:text-gray-200">Pubblicato</span>
+                </label>
               </div>
             </div>
           </FormPage>

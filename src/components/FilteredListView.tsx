@@ -9,15 +9,24 @@ interface FilteredListViewProps {
     posts: Post[];
     progetti: Progetto[];
     onPostClick: (post: Post) => void;
-    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
+    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato' | 'statoMontato', value: boolean) => void;
 }
 
+// --- MODIFICA: La funzione ora gestisce correttamente il caso specifico ---
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipo = (tipoContenuto || "").toLowerCase();
+    
+    // Controlla prima i casi specifici che potrebbero essere ambigui
+    if (tipo === 'testo breve con immagine') return 'Testo';
+    
+    // Poi continua con le regole generali
     if (['reel', 'video', 'vlog', 'booktrailer'].some(term => tipo.includes(term))) return 'Video';
     if (['immagine', 'carousel', 'grafica'].some(term => tipo.includes(term))) return 'Immagine';
+    
+    // Se nessuna corrispondenza, è 'Testo'
     return 'Testo';
 };
+
 
 const normalizeDateToMillis = (date: any): number => {
     if (!date) return 0;
@@ -37,7 +46,6 @@ const FilterPill: React.FC<{
     colorClass?: string;
 }> = ({ label, isActive, onClick, colorClass = '' }) => {
     const { getActiveColor } = useTheme();
-    // *** CORREZIONE: Forzato il testo a bianco per i pulsanti attivi colorati ***
     const activeClasses = colorClass ? `${colorClass} text-white font-bold` : `${getActiveColor('bg')} text-white font-bold`;
     const inactiveClasses = 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600';
     
@@ -57,7 +65,16 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
     const filteredAndSortedPosts = useMemo(() => {
         return posts
             .filter(post => {
-                if (post.statoProdotto) return false;
+                const categoria = getCategoriaGenerica(post.tipoContenuto);
+
+                if (categoria === 'Testo') {
+                    if (post.statoProdotto) return false;
+                } else {
+                    if (post.statoProdotto && post.statoMontato) {
+                        return false;
+                    }
+                }
+                
                 if (activeFilter.type === 'category') {
                     return activeFilter.value === 'all' || getCategoriaGenerica(post.tipoContenuto) === activeFilter.value;
                 }
@@ -86,7 +103,6 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                     Contenuti da Creare
                 </h1>
                 <div className="flex flex-col gap-4">
-                    {/* *** CORREZIONE: Aggiunto flex-wrap per andare a capo su mobile *** */}
                     <div className="flex flex-wrap items-center gap-2">
                         {categoryFilterOptions.map(option => (
                             <FilterPill 
@@ -134,7 +150,7 @@ export const FilteredListView: React.FC<FilteredListViewProps> = ({ posts, proge
                                 projectColor={progettoDelPost?.color}
                                 onCardClick={onPostClick}
                                 onStatusChange={onStatusChange}
-                                isDraggable={false}
+                                isDraggable={false} 
                                 showDate={true}
                             />
                         );

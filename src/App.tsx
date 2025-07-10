@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { db, auth } from './firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { signOut, type User } from 'firebase/auth';
 import { Plus, Download, UploadCloud } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 import Papa from 'papaparse';
+
+import { DndContext, useSensor, useSensors, MouseSensor, TouchSensor, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -33,11 +35,23 @@ import { AnalyticsImportModal } from './components/AnalyticsImportModal';
 
 import type { Post, Progetto, Categoria, PlatformData } from './types';
 
+// --- MODIFICA: La funzione ora gestisce correttamente il caso specifico ---
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipo = (tipoContenuto || "").toLowerCase();
+    
+    // Controlla prima i casi specifici che potrebbero essere ambigui
+    if (tipo === 'testo breve con immagine') return 'Testo';
+    
+    // Poi continua con le regole generali
     if (['reel', 'video', 'vlog', 'booktrailer'].some(term => tipo.includes(term))) return 'Video';
     if (['immagine', 'carousel', 'grafica'].some(term => tipo.includes(term))) return 'Immagine';
+    
+    // Se nessuna corrispondenza, è 'Testo'
     return 'Testo';
+};
+
+const isMediaContent = (tipoContenuto: string): boolean => {
+    return ["Immagine/Carosello", "Reel", "Booktrailer", "Podcast", "Vlog"].includes(tipoContenuto);
 };
 
 const normalizeDateToMillis = (date: any): number => {
@@ -72,6 +86,21 @@ function MainLayout() {
   
   const [actionConfig, setActionConfig] = useState({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
   const [statsActiveView, setStatsActiveView] = useState<'produzione' | 'performance'>('produzione');
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    })
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -149,16 +178,45 @@ function MainLayout() {
     await deleteDoc(doc(db, 'contenuti', id));
     handleCloseModals();
   };
-  const handleStatusChange = async (id: string, field: 'statoProdotto'|'statoPubblicato', value: boolean) => {
+
+  const handleStatusChange = async (id: string, field: 'statoProdotto' | 'statoMontato' | 'statoPubblicato', value: boolean) => {
     const ref = doc(db, 'contenuti', id);
-    if (field === 'statoPubblicato' && value) {
-      await updateDoc(ref, { statoProdotto: true, statoPubblicato: true });
-    } else if (field === 'statoProdotto' && !value) {
-      await updateDoc(ref, { statoProdotto: false, statoPubblicato: false });
-    } else {
-      await updateDoc(ref, { [field]: value });
+    const post = posts.find(p => p.id === id);
+    if (!post) return;
+
+    const updateData: any = {};
+    
+    switch (field) {
+        case 'statoProdotto':
+            updateData.statoProdotto = value;
+            if (!value) {
+                updateData.statoMontato = false;
+                updateData.statoPubblicato = false;
+            }
+            break;
+        
+        case 'statoMontato':
+            updateData.statoMontato = value;
+            if (value) {
+                updateData.statoProdotto = true;
+            } else {
+                updateData.statoPubblicato = false;
+            }
+            break;
+
+        case 'statoPubblicato':
+            updateData.statoPubblicato = value;
+            if (value) {
+                updateData.statoProdotto = true;
+                if (isMediaContent(post.tipoContenuto)) {
+                    updateData.statoMontato = true;
+                }
+            }
+            break;
     }
+    await updateDoc(ref, updateData);
   };
+
   const handleDuplicatePost = async (post: Post) => {
     if (user) {
       const { id, ...data } = post;
@@ -219,6 +277,13 @@ function MainLayout() {
     return processAndMatchAnalytics(parsedData, platformName, posts);
   };
   
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+        console.log(`Elemento ${active.id} spostato su ${over.id}. Implementare la logica di salvataggio qui.`);
+    }
+  };
+
   if (loadingData) return <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-gray-900"><p className="dark:text-white">Caricamento dati...</p></div>;
 
   const routes = (
@@ -266,7 +331,9 @@ function MainLayout() {
           <div className="flex-1 flex flex-col">
             <Header onLogout={() => signOut(auth)} />
             <main id="main-scroll-container" className="flex-1 overflow-y-auto custom-scrollbar">
-              {routes}
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                {routes}
+              </DndContext>
             </main>
           </div>
         </div>

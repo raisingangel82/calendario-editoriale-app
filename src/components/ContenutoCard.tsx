@@ -5,9 +5,10 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { Post } from '../types';
 import { PlatformIcon } from './PlatformIcon';
-import { GripVertical, Clock, CheckCircle, Eye, Heart, MessageSquare } from 'lucide-react';
+import { PenSquare, CheckCircle, Eye, Heart, MessageSquare, Scissors } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { getColor } from '../data/colorPalette';
+import { Timestamp } from 'firebase/firestore';
 
 interface ContenutoCardProps {
     post: Post;
@@ -16,7 +17,7 @@ interface ContenutoCardProps {
     showDate?: boolean;
     isMobileView?: boolean;  
     onCardClick: (post: Post) => void;
-    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
+    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato' | 'statoMontato', value: boolean) => void;
     isDraggable: boolean;
 }
 
@@ -31,50 +32,67 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
         borderRight: `5px solid ${finalColor.hex}` 
     };
 
-    const handleStatusClick = (e: React.MouseEvent, field: 'statoProdotto' | 'statoPubblicato', currentValue: boolean) => {
+    const handleStatusChangeOnMouseDown = (e: React.MouseEvent, field: 'statoProdotto' | 'statoPubblicato' | 'statoMontato', currentValue: boolean) => {
         e.stopPropagation();
         onStatusChange(post.id, field, !currentValue);
     };
 
-    const prodottoClass = post.statoProdotto ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600';
-    const pubblicatoClass = post.statoPubblicato ? 'text-green-500' : 'text-gray-300 dark:text-gray-600';
+    const isMediaContent = ["Immagine/Carosello", "Reel", "Booktrailer", "Podcast", "Vlog"].includes(post.tipoContenuto);
 
+    const prodottoClass = post.statoProdotto ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600';
+    const montatoClass = post.statoMontato ? 'text-blue-500' : 'text-gray-300 dark:text-gray-600';
+    const pubblicatoClass = post.statoPubblicato ? 'text-green-500' : 'text-gray-300 dark:text-gray-600';
+    
     return (
         <div 
             ref={setNodeRef} 
             style={{ ...style, ...borderStyle }}
             className="flex w-full h-24 items-stretch bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all group"
         >
-            {/* COLONNA SINISTRA: Maniglia e Azioni */}
             <div 
-                {...attributes} 
-                {...listeners} 
-                className={`flex flex-col items-center justify-between p-2 space-y-1 bg-gray-100 dark:bg-gray-900/40 rounded-l-lg rounded-r-none ${isDraggable ? 'cursor-grab' : ''} group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors`}
+                {...attributes}
+                {...listeners}
+                className={`flex flex-col items-center justify-around p-2 space-y-1 bg-gray-100 dark:bg-gray-900/40 rounded-l-lg rounded-r-none group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors ${isDraggable ? 'cursor-grab' : ''}`}
             >
-                <div onClick={() => onCardClick(post)} className="cursor-pointer">
-                    <PlatformIcon platform={post.piattaforma} className="w-5 h-5 text-gray-700 dark:text-gray-300"/>
-                </div>
-                <GripVertical size={16} className="text-gray-400 dark:text-gray-500" />
+                <PlatformIcon platform={post.piattaforma} className="w-5 h-5 text-gray-700 dark:text-gray-300"/>
+                
                 <div className="flex flex-col gap-1">
-                    <button onClick={(e) => handleStatusClick(e, 'statoProdotto', post.statoProdotto)} title="Prodotto" className={`transition-colors hover:text-amber-500 ${prodottoClass}`}>
-                        <Clock size={14} />
+                    <button 
+                        onMouseDown={(e) => handleStatusChangeOnMouseDown(e, 'statoProdotto', !!post.statoProdotto)} 
+                        title="Creato" 
+                        className="transition-colors hover:text-amber-500"
+                    >
+                        <PenSquare size={14} className={prodottoClass} />
                     </button>
-                    <button onClick={(e) => handleStatusClick(e, 'statoPubblicato', post.statoPubblicato)} title="Pubblicato" className={`transition-colors hover:text-green-500 ${pubblicatoClass}`}>
-                        <CheckCircle size={14} />
+                    <button 
+                        onMouseDown={(e) => handleStatusChangeOnMouseDown(e, 'statoMontato', !!post.statoMontato)} 
+                        title={isMediaContent ? "Montato" : "Non applicabile"}
+                        disabled={!isMediaContent}
+                        className="transition-colors hover:text-blue-500 disabled:opacity-50 disabled:hover:text-gray-300 dark:disabled:hover:text-gray-600 disabled:cursor-not-allowed"
+                    >
+                        <Scissors size={14} className={montatoClass}/>
+                    </button>
+                    <button 
+                        onMouseDown={(e) => handleStatusChangeOnMouseDown(e, 'statoPubblicato', !!post.statoPubblicato)} 
+                        title="Pubblicato" 
+                        className="transition-colors hover:text-green-500"
+                    >
+                        <CheckCircle size={14} className={pubblicatoClass} />
                     </button>
                 </div>
             </div>
 
-            {/* COLONNA CENTRALE: Contenuto Principale */}
-            <div className="flex-grow p-2 flex flex-col min-w-0" onClick={() => onCardClick(post)}>
-                {/* [MODIFICA] Riga superiore con titolo a sx e data a dx */}
+            <div 
+                className="flex-grow p-2 flex flex-col min-w-0 cursor-pointer"
+                onClick={() => onCardClick(post)}
+            >
                 <div className="flex justify-between items-start gap-2">
                     <p className="font-bold text-sm text-gray-800 dark:text-gray-100 break-words truncate">
                         {nomeProgetto || 'Progetto non assegnato'}
                     </p>
                     {showDate && post.data && (
                         <p className="text-xs font-semibold text-red-500 flex-shrink-0">
-                           {format(post.data.toDate(), 'dd MMM yy', { locale: it })}
+                           {format((post.data as Timestamp).toDate(), 'dd MMM yy', { locale: it })}
                         </p>
                     )}
                 </div>
@@ -88,8 +106,11 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
                 )}
             </div>
 
-            {/* COLONNA DESTRA: Barra delle Metriche */}
-            <div className="flex flex-col items-center justify-around w-14 p-2 bg-gray-100 dark:bg-gray-900/40 rounded-r-lg rounded-l-none group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors text-xs text-gray-500 dark:text-gray-400">
+            <div 
+                {...attributes}
+                {...listeners}
+                className={`flex flex-col items-center justify-around w-14 p-2 bg-gray-100 dark:bg-gray-900/40 rounded-r-lg rounded-l-none group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors text-xs text-gray-500 dark:text-gray-400 ${isDraggable ? 'cursor-grab' : ''}`}
+            >
                 {post.performance && (
                     <>
                         {post.performance.views > 0 && (
