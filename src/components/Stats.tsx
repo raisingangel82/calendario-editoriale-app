@@ -39,6 +39,7 @@ const StatCard: React.FC<{ title: string; icon: React.ElementType; children: Rea
     </div>
 );
 
+// --- INIZIO BLOCCO CODICE CORRETTO ---
 const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ posts, progetti }) => {
     const [activeProjectId, setActiveProjectId] = useState<string>('all');
     const { baseColor, colorShade } = useTheme();
@@ -52,11 +53,26 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
         if (activeProjectId === 'all') return null;
         const progetto = progetti.find(p => p.id === activeProjectId);
         if (!progetto) return null;
-        const postsDelProgetto = posts.filter(p => p.projectId === activeProjectId && p.statoProdotto);
-        const totali = postsDelProgetto.length;
-        const perCategoria: Record<Categoria, number> = { Testo: 0, Immagine: 0, Video: 0 };
-        postsDelProgetto.forEach(p => { perCategoria[getCategoriaGenerica(p.tipoContenuto)]++; });
-        return { nome: progetto.nome, totali, perCategoria, color: progetto.color };
+
+        const tuttiIPostDelProgetto = posts.filter(p => p.projectId === activeProjectId);
+        
+        const perCategoria: Record<Categoria, { prodotti: number, totali: number }> = {
+            Testo: { prodotti: 0, totali: 0 },
+            Immagine: { prodotti: 0, totali: 0 },
+            Video: { prodotti: 0, totali: 0 },
+        };
+
+        tuttiIPostDelProgetto.forEach(p => {
+            const categoria = getCategoriaGenerica(p.tipoContenuto);
+            if (perCategoria[categoria]) {
+                perCategoria[categoria].totali++;
+                if (p.statoProdotto) {
+                    perCategoria[categoria].prodotti++;
+                }
+            }
+        });
+
+        return { nome: progetto.nome, perCategoria, color: progetto.color };
     }, [activeProjectId, posts, progetti]);
 
     return (
@@ -82,13 +98,21 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
                         <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
                             <div className="space-y-3">
                                 {(['Testo', 'Immagine', 'Video'] as Categoria[]).map(cat => {
-                                    const count = statsProgettoSelezionato.perCategoria[cat];
-                                    const percentage = statsProgettoSelezionato.totali > 0 ? (count / statsProgettoSelezionato.totali) * 100 : 0;
+                                    const statsCategoria = statsProgettoSelezionato.perCategoria[cat];
+                                    if (statsCategoria.totali === 0) return null;
+
+                                    const percentage = statsCategoria.totali > 0 ? (statsCategoria.prodotti / statsCategoria.totali) * 100 : 0;
                                     const barColor = getColor(statsProgettoSelezionato.color || baseColor, colorShade).bgClass;
+                                    
                                     return (
                                         <div key={cat}>
-                                            <div className="flex justify-between text-sm mb-1"><span className="font-semibold text-gray-700 dark:text-gray-300">{cat}</span><span className="text-gray-500 dark:text-gray-400">{count} / {statsProgettoSelezionato.totali}</span></div>
-                                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5"><div className={`h-2.5 rounded-full ${barColor}`} style={{ width: `${percentage}%` }}></div></div>
+                                            <div className="flex justify-between text-sm mb-1">
+                                                <span className="font-semibold text-gray-700 dark:text-gray-300">{cat}</span>
+                                                <span className="text-gray-500 dark:text-gray-400">{statsCategoria.prodotti} / {statsCategoria.totali}</span>
+                                            </div>
+                                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                                                <div className={`h-2.5 rounded-full ${barColor}`} style={{ width: `${percentage}%` }}></div>
+                                            </div>
                                         </div>
                                     );
                                 })}
@@ -100,6 +124,7 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
         </div>
     );
 };
+// --- FINE BLOCCO CODICE CORRETTO ---
 
 const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardClick: (post:Post) => void, onStatusChange: (id: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void }> = ({ posts, progetti, onCardClick, onStatusChange }) => {
     const [sortBy, setSortBy] = useState<SortKey>('views');
@@ -147,7 +172,6 @@ const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardCli
                             ))}
                         </div>
 
-                        {/* [MODIFICA] Reso il contenitore "flex-wrap" e l'etichetta "Ordina per:" a larghezza piena su mobile */}
                         <div className="flex flex-wrap items-center gap-2 border-y border-gray-200 dark:border-gray-700 py-3 my-3">
                             <span className="w-full sm:w-auto text-sm font-semibold text-gray-500 mb-2 sm:mb-0 sm:mr-2">Ordina per:</span>
                             {sortOptions.map(opt => (
