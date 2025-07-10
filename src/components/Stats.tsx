@@ -39,16 +39,16 @@ const StatCard: React.FC<{ title: string; icon: React.ElementType; children: Rea
     </div>
 );
 
-// --- INIZIO BLOCCO CODICE CORRETTO ---
 const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ posts, progetti }) => {
     const [activeProjectId, setActiveProjectId] = useState<string>('all');
-    const { baseColor, colorShade } = useTheme();
+    const { baseColor, colorShade, getActiveColor } = useTheme();
 
     const statsGenerali = useMemo(() => {
         const creati = posts.filter(p => p.statoProdotto).length;
         return { creati, daCreare: posts.length - creati };
     }, [posts]);
 
+    // STATS PER PROGETTO SINGOLO (logica invariata)
     const statsProgettoSelezionato = useMemo(() => {
         if (activeProjectId === 'all') return null;
         const progetto = progetti.find(p => p.id === activeProjectId);
@@ -75,6 +75,37 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
         return { nome: progetto.nome, perCategoria, color: progetto.color };
     }, [activeProjectId, posts, progetti]);
 
+    // STATS AGGREGATE PER "NESSUN FILTRO"
+    const statsTuttiIProgetti = useMemo(() => {
+        const perCategoria: Record<Categoria, { prodotti: number, totali: number }> = {
+            Testo: { prodotti: 0, totali: 0 },
+            Immagine: { prodotti: 0, totali: 0 },
+            Video: { prodotti: 0, totali: 0 },
+        };
+
+        // Itera su TUTTI i post, senza filtrare per progetto
+        posts.forEach(p => {
+            const categoria = getCategoriaGenerica(p.tipoContenuto);
+            if (perCategoria[categoria]) {
+                perCategoria[categoria].totali++;
+                if (p.statoProdotto) {
+                    perCategoria[categoria].prodotti++;
+                }
+            }
+        });
+        
+        return { perCategoria }; 
+    }, [posts]);
+
+    // Determina quali dati visualizzare in base alla selezione
+    const statsDaVisualizzare = activeProjectId === 'all' 
+        ? statsTuttiIProgetti 
+        : statsProgettoSelezionato;
+
+    const titoloCardAnalisi = activeProjectId === 'all'
+        ? "Analisi Complessiva"
+        : "Analisi per Progetto";
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <StatCard title="Riepilogo Generale" icon={PieChart}>
@@ -83,8 +114,13 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
                     <div className="flex justify-between items-center"><span className="text-sm font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-2"><Clock size={16} className="text-amber-500"/> Da Creare</span><span className="text-xl font-bold text-gray-900 dark:text-gray-100">{statsGenerali.daCreare}</span></div>
                 </div>
             </StatCard>
-            <StatCard title="Analisi per Progetto" icon={BarIcon}>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Seleziona un progetto per visualizzare i dettagli della produzione.</p>
+            <StatCard title={titoloCardAnalisi} icon={BarIcon}>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    {activeProjectId === 'all'
+                        ? "Visualizza l'avanzamento totale o seleziona un progetto."
+                        : "Seleziona un progetto per visualizzare i dettagli della produzione."
+                    }
+                </p>
                 <div className="flex flex-wrap items-center gap-2 mb-4">
                     <FilterPill label="Nessun filtro" isActive={activeProjectId === 'all'} onClick={() => setActiveProjectId('all')} />
                     {progetti.map(proj => {
@@ -93,38 +129,41 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
                         return <FilterPill key={proj.id} label={proj.nome} isActive={activeProjectId === proj.id} onClick={() => setActiveProjectId(proj.id)} colorClass={bgColor} />
                     })}
                 </div>
-                {activeProjectId !== 'all' && (
-                    statsProgettoSelezionato ? (
-                        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                            <div className="space-y-3">
-                                {(['Testo', 'Immagine', 'Video'] as Categoria[]).map(cat => {
-                                    const statsCategoria = statsProgettoSelezionato.perCategoria[cat];
-                                    if (statsCategoria.totali === 0) return null;
+                
+                {statsDaVisualizzare ? (
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                        <div className="space-y-3">
+                            {(['Testo', 'Immagine', 'Video'] as Categoria[]).map(cat => {
+                                const statsCategoria = statsDaVisualizzare.perCategoria[cat];
+                                if (statsCategoria.totali === 0) return null;
 
-                                    const percentage = statsCategoria.totali > 0 ? (statsCategoria.prodotti / statsCategoria.totali) * 100 : 0;
-                                    const barColor = getColor(statsProgettoSelezionato.color || baseColor, colorShade).bgClass;
-                                    
-                                    return (
-                                        <div key={cat}>
-                                            <div className="flex justify-between text-sm mb-1">
-                                                <span className="font-semibold text-gray-700 dark:text-gray-300">{cat}</span>
-                                                <span className="text-gray-500 dark:text-gray-400">{statsCategoria.prodotti} / {statsCategoria.totali}</span>
-                                            </div>
-                                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                                                <div className={`h-2.5 rounded-full ${barColor}`} style={{ width: `${percentage}%` }}></div>
-                                            </div>
+                                const percentage = (statsCategoria.prodotti / statsCategoria.totali) * 100;
+                                
+                                const barColor = activeProjectId !== 'all' && statsProgettoSelezionato?.color
+                                    ? getColor(statsProgettoSelezionato.color, colorShade).bgClass
+                                    : getActiveColor('bg');
+
+                                return (
+                                    <div key={cat}>
+                                        <div className="flex justify-between text-sm mb-1">
+                                            <span className="font-semibold text-gray-700 dark:text-gray-300">{cat}</span>
+                                            <span className="text-gray-500 dark:text-gray-400">{statsCategoria.prodotti} / {statsCategoria.totali}</span>
                                         </div>
-                                    );
-                                })}
-                            </div>
+                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                                            <div className={`h-2.5 rounded-full ${barColor}`} style={{ width: `${percentage}%` }}></div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
-                    ) : <p className="text-sm text-center text-gray-500 dark:text-gray-400 pt-4 border-t border-gray-200 dark:border-gray-700">Caricamento dati progetto...</p>
+                    </div>
+                ) : (
+                    activeProjectId !== 'all' && <p className="text-sm text-center text-gray-500 dark:text-gray-400 pt-4 border-t border-gray-200 dark:border-gray-700">Caricamento dati progetto...</p>
                 )}
             </StatCard>
         </div>
     );
 };
-// --- FINE BLOCCO CODICE CORRETTO ---
 
 const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardClick: (post:Post) => void, onStatusChange: (id: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void }> = ({ posts, progetti, onCardClick, onStatusChange }) => {
     const [sortBy, setSortBy] = useState<SortKey>('views');
@@ -171,7 +210,7 @@ const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardCli
                                 />
                             ))}
                         </div>
-
+                        
                         <div className="flex flex-wrap items-center gap-2 border-y border-gray-200 dark:border-gray-700 py-3 my-3">
                             <span className="w-full sm:w-auto text-sm font-semibold text-gray-500 mb-2 sm:mb-0 sm:mr-2">Ordina per:</span>
                             {sortOptions.map(opt => (
