@@ -58,7 +58,6 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
   };
 
   return (
-    // --- MODIFICA: Aggiunto padding per header e footer ---
     <div className="space-y-6 pt-4 pb-24"> 
       <StatCard title="Analisi Strategica con AI" icon={BrainCircuit}>
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
@@ -80,7 +79,6 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
         </StatCard>
       )}
 
-      {/* --- MODIFICA: Logica per visualizzare il report per piattaforma --- */}
       {report && (
         <div className="space-y-8 animate-fade-in">
           {Object.entries(report).map(([platform, data]) => (
