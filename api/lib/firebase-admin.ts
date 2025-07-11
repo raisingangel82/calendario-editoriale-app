@@ -1,39 +1,44 @@
-// src/firebase-admin.ts
+// api/lib/firebase-admin.ts
 import * as admin from 'firebase-admin';
+import type { ServiceAccount } from 'firebase-admin/app'; // Importa il tipo per maggiore chiarezza
 
-let app: admin.app.App | undefined;
+// Inizializza l'SDK di Firebase Admin una sola volta quando il modulo viene caricato.
+// Questo è un pattern comune per le funzioni serverless.
+if (!admin.apps.length) {
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+  // Sostituisce i caratteri di escape della nuova riga con caratteri di nuova riga reali
+  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
-export function db() {
-  if (!admin.apps.length) {
-    // Tentativo di caricare le credenziali dalla variabile d'ambiente (raccomandato per produzione)
-    const serviceAccountJson = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
-    
-    if (serviceAccountJson) {
-      // Se la variabile d'ambiente esiste, usa il suo contenuto JSON
-      const serviceAccount = JSON.parse(serviceAccountJson);
-      app = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-    } else {
-      // Fallback per lo sviluppo locale: carica da un file locale
-      // ASSICURATI CHE IL PERCORSO QUI SOTTO SIA CORRETTO PER LA TUA CHIAVE JSON
-      // E CHE IL FILE SIA NEL .gitignore!
-      try {
-        // Esempio: se il tuo file JSON è nella root del progetto:
-        const localServiceAccount = require('../../nome-del-tuo-file-di-cred.json'); // SOSTITUISCI CON IL NOME ESATTO DEL TUO FILE
-        app = admin.initializeApp({
-          credential: admin.credential.cert(localServiceAccount)
-        });
-      } catch (e) {
-        console.error("Errore: Impossibile trovare la chiave di servizio locale. Assicurati che FIREBASE_ADMIN_PRIVATE_KEY sia impostata o che il file locale esista.");
-        throw e; // Lancia l'errore per bloccare l'esecuzione se le credenziali non ci sono
-      }
-    }
-  } else {
-    app = admin.app(); // Se l'app è già stata inizializzata, la recupera.
+  // Verifica che tutte le variabili d'ambiente necessarie siano presenti
+  if (!projectId || !clientEmail || !privateKey) {
+    console.error("ERRORE: Variabili d'ambiente Firebase Admin non impostate correttamente o mancanti.");
+    // Lancia un errore esplicito se le credenziali non vengono trovate
+    throw new Error('Firebase Admin environment variables (FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY) sono richieste per inizializzare l\'SDK.');
   }
-  return app.firestore();
+
+  try {
+    const serviceAccount: ServiceAccount = {
+      projectId: projectId,
+      clientEmail: clientEmail,
+      privateKey: privateKey,
+    };
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      // Puoi aggiungere altre opzioni qui se necessario, ad esempio databaseURL
+      // databaseURL: "https://<IL_TUO_PROGETTO>.firebaseio.com",
+    });
+    console.log("Firebase Admin SDK inizializzato con successo.");
+  } catch (error: any) { // Usa 'any' per gestire errori di tipo sconosciuto
+    console.error("Errore di inizializzazione Firebase Admin SDK:", error);
+    // Rilancia l'errore per assicurarsi che la funzione serverless fallisca
+    throw new Error(`Impossibile inizializzare Firebase Admin SDK: ${error.message || error}`);
+  }
 }
 
-// Puoi esportare anche altri servizi Admin se ti servono in futuro, es:
-// export const auth = admin.auth();
+// Esporta l'istanza di Firestore direttamente dall'app inizializzata
+export const db = admin.firestore();
+
+// Se avessi bisogno anche dell'oggetto Auth dall'Admin SDK, potresti esportarlo così:
+// export const adminAuth = admin.auth();
