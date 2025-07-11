@@ -58,7 +58,7 @@ export default async function handler(
     console.log(`[LOG] Inviando un campione di ${samplePosts.length} post all'AI.`);
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
     
     // 5. Prompt potenziato per un'analisi più profonda
     const prompt = `
