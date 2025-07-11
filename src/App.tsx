@@ -99,19 +99,50 @@ function MainLayout() {
   );
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setPosts([]);
+      setProgetti([]);
+      setPlatforms([]);
+      setLoadingData(false);
+      return;
+    }
+    
     setLoadingData(true);
 
     const userPrefsRef = doc(db, 'userPreferences', user.uid);
     getDoc(userPrefsRef).then(docSnap => {
-        if (docSnap.exists() && docSnap.data().workingDays) setWorkingDays(docSnap.data().workingDays);
+        if (docSnap.exists() && docSnap.data().workingDays) {
+            setWorkingDays(docSnap.data().workingDays);
+        }
+    });
+
+    const qProgetti = query(collection(db, "progetti"), where("userId", "==", user.uid));
+    const unsubProgetti = onSnapshot(qProgetti, (snapshot) => {
+        setProgetti(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Progetto[]);
     });
 
     const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
-    const unsubPosts = onSnapshot(qPosts, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[]); setLoadingData(false); });
-    
-    const qProgetti = query(collection(db, "progetti"), where("userId", "==", user.uid));
-    const unsubProgetti = onSnapshot(qProgetti, (snapshot) => setProgetti(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Progetto[]));
+    const unsubPosts = onSnapshot(qPosts, async (snapshot) => {
+        const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[];
+        
+        const postsConPerformance = await Promise.all(
+            postsData.map(async (post) => {
+                const performanceDocRef = doc(db, 'performanceMetrics', post.id);
+                try {
+                    const performanceSnap = await getDoc(performanceDocRef);
+                    if (performanceSnap.exists()) {
+                        return { ...post, performance: performanceSnap.data() };
+                    }
+                } catch (error) {
+                    console.error("Errore nel recuperare le performance per il post:", post.id, error);
+                }
+                return post;
+            })
+        );
+        
+        setPosts(postsConPerformance);
+        setLoadingData(false);
+    });
     
     const qPlatforms = query(collection(db, "platforms"), where("userId", "==", user.uid));
     const unsubPlatforms = onSnapshot(qPlatforms, (snapshot) => {
