@@ -1,7 +1,7 @@
 // cleanupEmptyPosts.ts
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 // Importa db dall'Admin SDK che hai configurato al Passo 2
-import { db } from '../src/firebase-admin.js'; 
+import { db } from './lib/firebase-admin.js'; // CAMBIATO IL PERCORSO!
 // Importa getDoc (singolare) per ottenere un singolo documento
 import { collection, query, where, getDocs, getDoc, writeBatch } from 'firebase-admin/firestore'; 
 
