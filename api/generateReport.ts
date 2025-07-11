@@ -49,7 +49,7 @@ export default async function handler(
     console.log(`[LOG] Dati originali: ${posts.length} post. Inviando un campione di ${samplePosts.length} post all'AI.`);
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
     
     const prompt = `
       Sei un social media strategist esperto, specializzato nell'analizzare dati per autori e creatori di contenuti. Il tuo tono è incoraggiante, professionale e orientato all'azione.
