@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { DndContext, useDroppable } from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
+import { DndContext, useDroppable, type DragEndEvent } from '@dnd-kit/core';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, setHours, getDay, differenceInWeeks } from 'date-fns';
@@ -9,20 +8,11 @@ import { ContenutoCard } from './ContenutoCard';
 import type { Post, Progetto } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useBreakpoint } from '../hooks/useBreakpoint';
-import { ArrowDownToLine, ArrowUpToLine } from 'lucide-react'; // Importa l'icona per lo scroll
 
 const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, children }) => {
     const { setNodeRef, isOver } = useDroppable({ id });
     const bgColor = isOver ? 'bg-indigo-50 dark:bg-indigo-900/40' : '';
     return (<div ref={setNodeRef} className={`p-2 h-full w-full transition-colors rounded-lg ${bgColor} min-h-[10rem]`}><div className="space-y-2">{children}</div></div>);
-}
-
-interface CalendarioProps {
-    posts: Post[];
-    progetti: Progetto[];
-    workingDays: number[];
-    onCardClick: (post: Post) => void;
-    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
 }
 
 const normalizeDate = (date: any): Date | null => {
@@ -33,38 +23,45 @@ const normalizeDate = (date: any): Date | null => {
     return isNaN(parsed.getTime()) ? null : parsed;
 };
 
-export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, workingDays = [1, 2, 3, 4, 5], onCardClick, onStatusChange }) => {
+interface CalendarioProps {
+    posts: Post[];
+    progetti: Progetto[];
+    workingDays: number[];
+    onCardClick: (post: Post) => void;
+    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
+    autoScrollEnabled: boolean;
+}
+
+export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, workingDays, onCardClick, onStatusChange, autoScrollEnabled }) => {
     const { getActiveColor } = useTheme();
     const isDesktop = useBreakpoint();
     const [oggi] = useState(() => startOfDay(new Date()));
     const [weeks, setWeeks] = useState<Date[][]>([]);
-    // Nuovo stato per controllare lo scorrimento automatico
-    const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true); 
 
     const dateEstremes = useMemo(() => {
-        if (posts.length === 0) return { first: addDays(oggi, -21), last: addWeeks(oggi, 8) };
+        if (posts.length === 0) {
+            return { first: addDays(oggi, -21), last: addWeeks(oggi, 8) };
+        }
         
-        let minDate = new Date();
-        let maxDate = new Date();
+        let minDate: Date | null = null;
+        let maxDate: Date | null = null;
 
-        posts.forEach((post, index) => {
+        posts.forEach((post) => {
             const currentDate = normalizeDate(post.data);
             if (!currentDate) return;
 
-            if (index === 0) {
-                minDate = currentDate;
-                maxDate = currentDate;
-            } else {
-                if (currentDate < minDate) minDate = currentDate;
-                if (currentDate > maxDate) maxDate = currentDate;
-            }
+            if (minDate === null || currentDate < minDate) minDate = currentDate;
+            if (maxDate === null || currentDate > maxDate) maxDate = currentDate;
         });
 
-        // Assicura che la vista includa almeno oggi
+        if (minDate === null || maxDate === null) {
+            return { first: addDays(oggi, -21), last: addWeeks(oggi, 8) };
+        }
+
         if (minDate > oggi) minDate = oggi;
         if (maxDate < oggi) maxDate = oggi;
 
-        return { first: minDate, last: addWeeks(maxDate, 1) }; // Aggiungi una settimana di buffer alla fine
+        return { first: minDate, last: addWeeks(maxDate, 1) };
     }, [posts, oggi]);
 
     useEffect(() => {
@@ -75,23 +72,22 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
         const weekArray = Array.from({ length: weekCount > 0 ? weekCount : 12 }, (_, i) => {
             const settimanaInizio = addWeeks(dataInizioCalendario, i);
             return Array.from({ length: 7 }, (_, j) => addDays(settimanaInizio, j))
-                .filter(day => workingDays.includes(getDay(day)));
+                .filter(day => workingDays.includes(getDay(day) === 0 ? 7 : getDay(day)));
         });
         setWeeks(weekArray.filter(week => week.length > 0));
     }, [workingDays, dateEstremes]);
 
-    // Modifica dell'useEffect per lo scorrimento automatico
     useEffect(() => {
-        if (!isAutoScrollEnabled) return; // Scorre solo se abilitato
+        if (!autoScrollEnabled) return;
 
         const scrollTimer = setTimeout(() => {
             const scrollContainer = document.getElementById('main-scroll-container');
             if (!scrollContainer || weeks.length === 0) return;
 
             let targetDay = oggi;
-            if (!workingDays.includes(getDay(oggi))) {
+            if (!workingDays.includes(getDay(oggi) === 0 ? 7 : getDay(oggi))) {
                 let nextDay = addDays(oggi, 1);
-                while (!workingDays.includes(getDay(nextDay))) {
+                while (!workingDays.includes(getDay(nextDay) === 0 ? 7 : getDay(nextDay))) {
                     nextDay = addDays(nextDay, 1);
                 }
                 targetDay = nextDay;
@@ -103,11 +99,11 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
             if (targetElement) {
                 const headerOffset = document.querySelector('header')?.offsetHeight || 0;
                 const topPosition = targetElement.offsetTop - headerOffset;
-                scrollContainer.scrollTo({ top: Math.max(0, topPosition), behavior: 'smooth' }); // Cambiato in 'smooth' per uno scorrimento più gradevole
+                scrollContainer.scrollTo({ top: Math.max(0, topPosition), behavior: 'auto' });
             }
-        }, 100);
+        }, 150);
         return () => clearTimeout(scrollTimer);
-    }, [isAutoScrollEnabled, isDesktop, weeks, oggi, workingDays]); // Aggiunto isAutoScrollEnabled alle dipendenze
+    }, [isDesktop, weeks, oggi, workingDays, autoScrollEnabled]);
 
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
@@ -121,20 +117,6 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
     if (isDesktop) {
         return (
             <div className="p-6">
-                <div className="flex justify-end mb-4">
-                    <button
-                        onClick={() => setIsAutoScrollEnabled(!isAutoScrollEnabled)}
-                        className={`flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-colors
-                                    ${isAutoScrollEnabled 
-                                        ? `${getActiveColor('bg')} text-white hover:${getActiveColor('bg-dark')}` 
-                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
-                                    }`}
-                        title={isAutoScrollEnabled ? "Disattiva scorrimento automatico" : "Attiva scorrimento automatico"}
-                    >
-                        {isAutoScrollEnabled ? <ArrowDownToLine size={18} /> : <ArrowUpToLine size={18} />}
-                        <span className="hidden sm:inline">{isAutoScrollEnabled ? 'Scroll Auto ON' : 'Scroll Auto OFF'}</span>
-                    </button>
-                </div>
                 <DndContext onDragEnd={handleDragEnd}>
                     <div className="space-y-8">
                         {weeks.map((settimana, index) => { 
@@ -189,20 +171,6 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
 
     return (
         <div className="space-y-4 p-4">
-            <div className="flex justify-end mb-4">
-                 <button
-                    onClick={() => setIsAutoScrollEnabled(!isAutoScrollEnabled)}
-                    className={`flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-colors
-                                ${isAutoScrollEnabled 
-                                    ? `${getActiveColor('bg')} text-white hover:${getActiveColor('bg-dark')}` 
-                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
-                                }`}
-                    title={isAutoScrollEnabled ? "Disattiva scorrimento automatico" : "Attiva scorrimento automatico"}
-                >
-                    {isAutoScrollEnabled ? <ArrowDownToLine size={18} /> : <ArrowUpToLine size={18} />}
-                    <span className="hidden sm:inline">{isAutoScrollEnabled ? 'Scroll Auto ON' : 'Scroll Auto OFF'}</span>
-                </button>
-            </div>
             {weeks.flat().map(giorno => {
                 const isToday = isEqual(startOfDay(giorno), oggi);
                 const dayId = `day-${format(giorno, 'yyyy-MM-dd')}`;

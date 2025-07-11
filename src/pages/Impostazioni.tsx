@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BellRing, Palette, Upload, Download, Settings, SlidersHorizontal, Briefcase, Star } from 'lucide-react'; // 'Trash' rimosso
+import React from 'react';
+import { BellRing, Palette, Upload, Download, Settings, Briefcase, Star, Play, Pause } from 'lucide-react';
 import { PlatformManager } from '../components/PlatformManager';
 import { getMessaging, getToken } from "firebase/messaging";
 import { doc, setDoc } from 'firebase/firestore';
@@ -27,43 +27,30 @@ interface ImpostazioniProps {
     onImportClick: () => void;
     onExportClick: () => void;
     onProjectsClick: () => void;
-    workingDays: number[];
-    setWorkingDays: (days: number[]) => void;
     platforms: PlatformData[];
     onAddPlatform: (data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => void;
     onUpdatePlatform: (id: string, data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => void;
     onDeletePlatform: (id: string) => void;
+    autoScrollEnabled: boolean;
+    onAutoScrollChange: (enabled: boolean) => void;
 }
-
-const daysOfWeek = [
-    { id: 1, label: 'L' }, { id: 2, label: 'M' }, { id: 3, label: 'M' },
-    { id: 4, label: 'G' }, { id: 5, label: 'V' }, { id: 6, label: 'S' }, { id: 0, label: 'D' }
-];
 
 export const Impostazioni: React.FC<ImpostazioniProps> = ({ 
     onImportClick, 
     onExportClick, 
     onProjectsClick, 
-    workingDays, 
-    setWorkingDays,
     platforms,
     onAddPlatform,
     onUpdatePlatform,
-    onDeletePlatform
+    onDeletePlatform,
+    autoScrollEnabled,
+    onAutoScrollChange
 }) => {
   const { user } = useAuth();
   const { baseColor, setBaseColor, colorShade, setColorShade, getActiveColor } = useTheme();
-  const [isSubscribing, setIsSubscribing] = useState(false);
-  const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
-  // Stati isCleaning e cleanupStatus rimossi
+  const [isSubscribing, setIsSubscribing] = React.useState(false);
+  const [notificationStatus, setNotificationStatus] = React.useState<string | null>(null);
 
-  const handleWorkingDaysChange = (dayId: number) => {
-    const newWorkingDays = workingDays.includes(dayId)
-      ? workingDays.filter(d => d !== dayId)
-      : [...workingDays, dayId].sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b));
-    setWorkingDays(newWorkingDays);
-  };
-  
   const handleEnableNotifications = async () => {
     if (!user) return;
     setIsSubscribing(true);
@@ -91,8 +78,6 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
       setIsSubscribing(false);
     }
   };
-
-  // Funzione handleCleanupPosts rimossa
   
   return (
     <div className="p-4 sm:p-6 pb-24">
@@ -116,16 +101,6 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
                         {(['400', '700', '800'] as ColorShade[]).map(shade => ( <button key={shade} onClick={() => setColorShade(shade)} className={`w-full text-xs py-1 px-2 rounded-md transition-colors ${colorShade === shade ? `${getActiveColor('bg')} text-white font-semibold` : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}> {shade === '400' ? 'Chiara' : shade === '700' ? 'Media' : 'Intensa'} </button>))}
                     </div>
                   </div>
-                  <div>
-                    <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Giorni Lavorativi</h5>
-                    <div className="flex flex-wrap gap-2">
-                      {daysOfWeek.map(day => (
-                          <button key={day.id} onClick={() => handleWorkingDaysChange(day.id)} className={`w-10 h-10 rounded-lg font-bold text-sm transition-colors ${workingDays.includes(day.id) ? `${getActiveColor('bg')} text-white` : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>
-                              {day.label}
-                          </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
             </SettingsCard>
 
@@ -143,9 +118,10 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
                           <span className="ml-1.5 flex items-center gap-1 text-xs font-bold bg-yellow-400 dark:bg-yellow-500 text-yellow-900 px-1.5 py-0.5 rounded-full"><Star size={12}/> PRO</span>
                         )}
                     </button>
-                    {/* PULSANTE PER LA PULIZIA RIMOSSO */}
+                    <button onClick={() => onAutoScrollChange(!autoScrollEnabled)} className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-semibold text-sm transition-colors ${autoScrollEnabled ? 'bg-amber-500 text-white' : 'bg-gray-600 text-white hover:bg-gray-700'}`}>
+                        {autoScrollEnabled ? <Pause size={16} /> : <Play size={16} />} <span className="hidden sm:inline">AutoScroll</span>
+                    </button>
                 </div>
-                {/* cleanupStatus rimosso */}
             </SettingsCard>
              <SettingsCard title="Notifiche" icon={BellRing}>
                 <div>

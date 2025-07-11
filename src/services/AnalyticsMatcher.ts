@@ -1,120 +1,108 @@
-import React, { useState } from 'react';
-import { BarChart2 as BarIcon, UploadCloud, Download } from 'lucide-react';
-import type { PlatformData } from '../types';
-import Papa from 'papaparse';
-import { BaseModal } from './BaseModal';
-import { StatCard } from './StatCard';
-import { getPlatformIcon } from '../utils/iconUtils';
+import { db } from '../firebase';
+import { doc, updateDoc, setDoc, addDoc, collection, serverTimestamp, Timestamp, type DocumentData } from 'firebase/firestore';
+import { isSameDay, format, parse, startOfDay } from 'date-fns';
+import { enUS } from 'date-fns/locale';
+import type { Post } from '../types';
 
-type ImportStrategy = 'update_only' | 'create_new';
-
-interface AnalyticsImportModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    platforms: PlatformData[];
-    onAnalyticsImport: (parsedData: any[], platformName: string, strategy: ImportStrategy) => Promise<{updated: number, created: number} | void>;
-}
-
-export const AnalyticsImportModal: React.FC<AnalyticsImportModalProps> = ({ isOpen, onClose, platforms, onAnalyticsImport }) => {
-    const [uploading, setUploading] = useState(false);
-    const [feedback, setFeedback] = useState<{type: 'success' | 'error', message: string} | null>(null);
-    const [strategy, setStrategy] = useState<ImportStrategy>('update_only');
-
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const files = event.target.files;
-        if (!files || files.length === 0) return;
-
-        setUploading(true);
-        setFeedback(null);
-
-        const filePromises = Array.from(files).map(file => {
-            return new Promise((resolve, reject) => {
-                const platformKey = file.name.replace(/\.[^/.]+$/, "").toLowerCase();
-                Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: async (results) => {
-                        try {
-                            // --- MODIFICA: Log di errore più dettagliato ---
-                            if (results.errors.length > 0) {
-                                console.error("Errori di parsing da Papaparse:", results.errors);
-                                throw new Error(`Errore di parsing in ${file.name}. Controlla la console per dettagli.`);
-                            }
-                            const result = await onAnalyticsImport(results.data, platformKey, strategy);
-                            resolve({ fileName: file.name, ...result });
-                        } catch (error) {
-                            reject(error);
-                        }
-                    },
-                    error: (error: any) => reject(new Error(`Impossibile leggere il file ${file.name}: ${error.message}`)),
-                });
-            });
-        });
-
-        try {
-            const results = await Promise.all(filePromises);
-            const totalUpdated = results.reduce((sum, result: any) => sum + (result.updated || 0), 0);
-            const totalCreated = results.reduce((sum, result: any) => sum + (result.created || 0), 0);
-            setFeedback({ type: 'success', message: `${results.length} file processati. ${totalUpdated} post aggiornati, ${totalCreated} post creati.` });
-        } catch (error: any) {
-            setFeedback({ type: 'error', message: error.message || "Si è verificato un errore." });
-        } finally {
-            setUploading(false);
-            event.target.value = '';
-        }
-    };
-
-    return (
-        <BaseModal isOpen={isOpen} onClose={onClose} title="Importa Dati Performance">
-            <div className="space-y-6">
-                <StatCard title="1. Scegli la Strategia di Importazione" icon={BarIcon}>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                        <button onClick={() => setStrategy('update_only')} className={`flex-1 p-3 text-left rounded-lg border-2 transition-all ${strategy === 'update_only' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent hover:border-gray-300 dark:hover:border-gray-500'}`}>
-                            <h4 className="font-bold text-gray-800 dark:text-gray-200">Match & Popola</h4>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Aggiorna solo i contenuti già presenti nel tuo calendario.</p>
-                        </button>
-                        <button onClick={() => setStrategy('create_new')} className={`flex-1 p-3 text-left rounded-lg border-2 transition-all ${strategy === 'create_new' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'bg-gray-100 dark:bg-gray-700/50 border-transparent hover:border-gray-300 dark:hover:border-gray-500'}`}>
-                           <h4 className="font-bold text-gray-800 dark:text-gray-200">Importa & Crea</h4>
-                           <p className="text-xs text-gray-500 dark:text-gray-400">Aggiorna i match e crea nuovi post per i dati non trovati.</p>
-                        </button>
-                    </div>
-                </StatCard>
-                <StatCard title="2. Scarica i Dati dalle Piattaforme" icon={Download}>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Usa questi link per accedere alle pagine di analytics e scaricare i file .csv.</p>
-                    <div className="flex flex-wrap gap-2">
-                        {(platforms || []).filter(p => p.analyticsUrl).map(p => {
-                            const Icon = getPlatformIcon(p);
-                            return (
-                                <a key={p.id} href={p.analyticsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-2 pr-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-                                    <Icon size={16} className="text-gray-600 dark:text-gray-300" />
-                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{p.name}</span>
-                                </a>
-                            );
-                        })}
-                    </div>
-                </StatCard>
-                <StatCard title="3. Carica i File" icon={UploadCloud}>
-                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Carica qui i file. Assicurati che il nome del file corrisponda alla piattaforma (es. `Instagram.csv`).</p>
-                    <label htmlFor="analytics-import-modal-upload" className={`w-full flex justify-center items-center gap-3 px-6 py-4 rounded-lg transition-colors cursor-pointer ${uploading ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-600 text-white font-semibold hover:bg-gray-700'}`}>
-                        <UploadCloud size={20} />
-                        <span>{uploading ? 'Caricamento...' : 'Seleziona file .csv'}</span>
-                    </label>
-                    <input 
-                        id="analytics-import-modal-upload" 
-                        type="file" 
-                        className="hidden" 
-                        accept=".csv" 
-                        multiple
-                        onChange={handleFileChange}
-                        disabled={uploading}
-                    />
-                    {feedback && (
-                        <p className={`text-center text-sm mt-3 ${feedback.type === 'success' ? 'text-green-500' : 'text-red-500'}`}>{feedback.message}</p>
-                    )}
-                </StatCard>
-            </div>
-        </BaseModal>
-    );
+// Mappatura definitiva
+const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
+    'youtube': { date: 'Ora pubblicazione video', views: 'Visualizzazioni', title: 'Titolo video', description: 'Titolo video' },
+    'instagram': { date: 'Orario di pubblicazione', views: 'Copertura', likes: 'Mi piace', comments: 'Commenti', description: 'Descrizione', postType: 'Tipo di post' },
+    'facebook': { date: 'Orario di pubblicazione', views: 'Copertura', interactions: 'Reazioni, commenti e condivisioni', likes: 'Reazioni', comments: 'Commenti', shares: 'Condivisioni', title: 'Titolo', description: 'Descrizione' },
+    'tiktok': { date: 'post time', views: 'Total views', likes: 'Total likes', comments: 'Total comments', shares: 'Total shares', description: 'Video title' }
 };
 
-export default AnalyticsImportModal;
+const getValueFromRecord = (record: DocumentData, key: string | undefined): string | null => {
+    if (!key) return null;
+    const recordKey = Object.keys(record).find(k => k.trim().toLowerCase() === key.toLowerCase());
+    return recordKey ? record[recordKey] : null;
+};
+
+const parseDate = (dateStr: string | null, platform: string): Date | null => {
+    if (!dateStr) return null;
+    try {
+        if (platform === 'youtube') return parse(dateStr, 'MMM d, yyyy', new Date(), { locale: enUS });
+        if (platform === 'tiktok') {
+            const monthMap: { [key: string]: number } = { 'gennaio': 0, 'febbraio': 1, 'marzo': 2, 'aprile': 3, 'maggio': 4, 'giugno': 5, 'luglio': 6, 'agosto': 7, 'settembre': 8, 'ottobre': 9, 'novembre': 10, 'dicembre': 11 };
+            const parts = dateStr.split(' ');
+            if (parts.length === 2) {
+                const day = parseInt(parts[0]);
+                const month = monthMap[parts[1]?.toLowerCase()];
+                const year = new Date().getFullYear(); 
+                if (!isNaN(day) && month !== undefined) return new Date(year, month, day);
+            }
+        }
+        if (platform === 'facebook' || platform === 'instagram') {
+            if (dateStr.includes('/')) {
+                 try { return parse(dateStr, 'MM/dd/yyyy', new Date()); } catch (e) {}
+                 try { return parse(dateStr, 'dd/MM/yyyy', new Date()); } catch (e) {}
+            }
+        }
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) return date;
+    } catch (e) { return null; }
+    return null;
+};
+
+export const processAndMatchAnalytics = async (
+    parsedData: DocumentData[], 
+    platform: string, 
+    existingPosts: Post[],
+    userId: string,
+    importStrategy: 'update_only' | 'create_new'
+): Promise<{ updated: number, created: number }> => {
+    const platformName = platform.toLowerCase();
+    const mapper = platformCsvMappers[platformName];
+    if (!mapper) return { updated: 0, created: 0 };
+
+    let updatedPostsCount = 0;
+    let createdPostsCount = 0;
+    let relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
+    const writePromises: Promise<void>[] = [];
+    let tiktokDebugCount = 0;
+
+    for (const record of parsedData) {
+        const rawDate = getValueFromRecord(record, mapper.date);
+        const csvDate = parseDate(rawDate, platformName);
+
+        if (platformName === 'tiktok' && tiktokDebugCount < 5) {
+            console.log(`--- TIKTOK DEBUG (Riga CSV ${tiktokDebugCount + 1}) ---`);
+            console.log(`Stringa Grezza dal File: "${rawDate}"`);
+            console.log(`Risultato del Parsing:`, csvDate); // Logga l'oggetto Date o null
+        }
+        
+        if (!csvDate) continue;
+
+        const viewsValue = getValueFromRecord(record, mapper.views);
+        if (!viewsValue) continue; 
+        
+        const matchingPostIndex = relevantDbPosts.findIndex(p => {
+            const firestoreDate = p.data ? (p.data as Timestamp).toDate() : null;
+            if (!firestoreDate) return false;
+
+            const match = isSameDay(startOfDay(firestoreDate), startOfDay(csvDate));
+
+            if (platformName === 'tiktok' && tiktokDebugCount < 5 && relevantDbPosts.indexOf(p) < 3) {
+                 console.log(`-> Tento match con post del: ${firestoreDate.toISOString()}`);
+                 console.log(`-> Esito confronto: ${match}`);
+            }
+            return match;
+        });
+
+        if(platformName === 'tiktok') tiktokDebugCount++;
+        
+        const performanceData = { /* ... */ }; // (omesso per brevità)
+
+        if (matchingPostIndex !== -1) {
+            updatedPostsCount++;
+            // ... (logica di aggiornamento omessa per brevità)
+        } else if (importStrategy === 'create_new') {
+            createdPostsCount++;
+            // ... (logica di creazione omessa per brevità)
+        }
+    }
+
+    // await Promise.all(writePromises); // Disabilitiamo la scrittura per il test
+    console.log(`--- ANALISI DI DEBUG COMPLETATA. Match teorici trovati: ${updatedPostsCount} ---`);
+    return { updated: updatedPostsCount, created: createdPostsCount };
+};

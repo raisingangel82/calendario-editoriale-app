@@ -36,7 +36,8 @@ export const AnalyticsImportModal: React.FC<AnalyticsImportModalProps> = ({ isOp
                     complete: async (results) => {
                         try {
                             if (results.errors.length > 0) {
-                                throw new Error(`Errore di parsing nel file ${file.name}`);
+                                console.error("Errori di parsing da Papaparse:", results.errors);
+                                throw new Error(`Errore di parsing in ${file.name}. Controlla la console per dettagli.`);
                             }
                             const result = await onAnalyticsImport(results.data, platformKey, strategy);
                             resolve({ fileName: file.name, ...result });

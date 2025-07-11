@@ -26,7 +26,6 @@ import { ContenutoModal } from './components/ContenutoModal';
 import { ImportModal } from './components/ImportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
 import { ExportModal } from './components/ExportModal';
-// --- MODIFICA CHIAVE: Corretto l'import con le parentesi graffe ---
 import { AnalyticsImportModal } from './components/AnalyticsImportModal';
 import type { Post, Progetto, Categoria, PlatformData } from './types';
 
@@ -77,6 +76,7 @@ function MainLayout() {
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [actionConfig, setActionConfig] = useState({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
   const [statsActiveView, setStatsActiveView] = useState<'produzione' | 'performance' | 'analisiAI'>('produzione');
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
@@ -90,6 +90,7 @@ function MainLayout() {
       setPlatforms([]);
       setIsProUser(false);
       setFullUser(null);
+      setAutoScrollEnabled(true);
       setLoadingData(false);
       return;
     }
@@ -109,9 +110,15 @@ function MainLayout() {
     });
 
     const userPrefsRef = doc(db, 'userPreferences', user.uid);
-    getDoc(userPrefsRef).then(docSnap => {
-        if (docSnap.exists() && docSnap.data().workingDays) {
-            setWorkingDays(docSnap.data().workingDays);
+    const unsubUserPrefs = onSnapshot(userPrefsRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if(data.workingDays) setWorkingDays(data.workingDays);
+            if(typeof data.autoScroll === 'boolean') {
+                setAutoScrollEnabled(data.autoScroll);
+            } else {
+                setAutoScrollEnabled(true);
+            }
         }
     });
 
@@ -152,6 +159,7 @@ function MainLayout() {
         unsubProgetti(); 
         unsubPlatforms();
         unsubUser();
+        unsubUserPrefs();
     };
   }, [user]);
 
@@ -191,6 +199,13 @@ function MainLayout() {
   
   const handleSetWorkingDays = async (days: number[]) => {
       if(user) await setDoc(doc(db, 'userPreferences', user.uid), { workingDays: days }, { merge: true });
+  };
+
+  const handleSetAutoScroll = async (enabled: boolean) => {
+      setAutoScrollEnabled(enabled);
+      if(user) {
+          await setDoc(doc(db, 'userPreferences', user.uid), { autoScroll: enabled }, { merge: true });
+      }
   };
 
   const handleCloseModals = () => {
@@ -317,7 +332,7 @@ function MainLayout() {
 
   const routes = (
       <Routes>
-          <Route path="/" element={<Calendario posts={posts} progetti={progetti} workingDays={workingDays} onCardClick={setSelectedPost} onStatusChange={handleStatusChange} />} />
+          <Route path="/" element={<Calendario posts={posts} progetti={progetti} workingDays={workingDays} onCardClick={setSelectedPost} onStatusChange={handleStatusChange} autoScrollEnabled={autoScrollEnabled} />} />
           <Route path="/todo" element={<FilteredListView posts={posts} progetti={progetti} onPostClick={setSelectedPost} onStatusChange={handleStatusChange} />} />
           <Route 
             path="/stats" 
@@ -337,13 +352,16 @@ function MainLayout() {
               <Impostazioni 
                 onImportClick={() => setIsImportModalOpen(true)} 
                 onExportClick={handleExportDatabase} 
-                onProjectsClick={() => setIsProjectModalOpen(true)} 
+                onProjectsClick={() => setIsProjectModalOpen(true)}
+                onLogoutClick={() => signOut(auth)}
                 workingDays={workingDays} 
                 setWorkingDays={handleSetWorkingDays}
                 platforms={platforms}
                 onAddPlatform={handleAddPlatform}
                 onUpdatePlatform={handleUpdatePlatform}
                 onDeletePlatform={handleDeletePlatform}
+                autoScrollEnabled={autoScrollEnabled}
+                onAutoScrollChange={handleSetAutoScroll}
               />
             } 
           />
