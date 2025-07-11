@@ -25,11 +25,13 @@
     "swiper": "^11.1.4"
   },
   "devDependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@typescript-eslint/eslint-plugin": "^7.2.0",
     "@typescript-eslint/parser": "^7.2.0",
+    "@vercel/node": "^5.3.4",
     "@vitejs/plugin-react-swc": "^3.5.0",
     "autoprefixer": "^10.4.19",
     "eslint": "^8.57.0",
