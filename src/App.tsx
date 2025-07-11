@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { db, auth } from './firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { signOut, type User } from 'firebase/auth';
-import { Plus, Download, UploadCloud, BarChart3, Wand } from 'lucide-react';
+import { Plus, Download, UploadCloud, BarChart3, Wand, LockKeyhole } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 import Papa from 'papaparse';
@@ -61,6 +61,11 @@ const normalizeDateToMillis = (date: any): number => {
     return 0;
 };
 
+// Interfaccia per l'oggetto utente arricchito
+interface FullUser extends User {
+  plan?: string;
+}
+
 function MainLayout() {
   const { user } = useAuth();
   const isDesktop = useBreakpoint();
@@ -70,6 +75,9 @@ function MainLayout() {
   const [progetti, setProgetti] = useState<Progetto[]>([]);
   const [platforms, setPlatforms] = useState<PlatformData[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  const [isProUser, setIsProUser] = useState(false);
+  const [fullUser, setFullUser] = useState<FullUser | null>(null);
 
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -103,11 +111,25 @@ function MainLayout() {
       setPosts([]);
       setProgetti([]);
       setPlatforms([]);
+      setIsProUser(false);
+      setFullUser(null);
       setLoadingData(false);
       return;
     }
     
     setLoadingData(true);
+
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsubUser = onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const userData = docSnap.data();
+            setFullUser({ ...user, plan: userData.plan }); 
+            setIsProUser(userData.plan === 'pro');
+        } else {
+            setFullUser(user);
+            setIsProUser(false);
+        }
+    });
 
     const userPrefsRef = doc(db, 'userPreferences', user.uid);
     getDoc(userPrefsRef).then(docSnap => {
@@ -158,6 +180,7 @@ function MainLayout() {
         unsubPosts(); 
         unsubProgetti(); 
         unsubPlatforms();
+        unsubUser();
     };
   }, [user]);
 
@@ -182,14 +205,18 @@ function MainLayout() {
             setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('performance'), label: 'Vai a Performance' });
             break;
         case 'performance':
-            setActionConfig({ icon: Wand, onClick: () => setStatsActiveView('analisiAI'), label: 'Genera Analisi AI' });
+            if (isProUser) {
+              setActionConfig({ icon: Wand, onClick: () => setStatsActiveView('analisiAI'), label: 'Genera Analisi AI (Pro)' });
+            } else {
+              setActionConfig({ icon: LockKeyhole, onClick: () => {}, label: 'Analisi AI (Solo Pro)' });
+            }
             break;
         case 'analisiAI':
             setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('produzione'), label: 'Torna a Produzione' });
             break;
       }
     }
-  }, [location.pathname, statsActiveView]);
+  }, [location.pathname, statsActiveView, isProUser]);
   
   const handleSetWorkingDays = async (days: number[]) => {
       setWorkingDays(days);
@@ -383,7 +410,7 @@ function MainLayout() {
         <ProjectManagerModal 
             onClose={() => setIsProjectModalOpen(false)} 
             progetti={progetti} 
-            user={user}
+            user={fullUser}
             onAddProject={handleAddProject} 
             onUpdateProject={handleUpdateProject} 
             onDeleteProject={handleDeleteProject} 
