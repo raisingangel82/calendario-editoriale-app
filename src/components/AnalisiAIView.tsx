@@ -58,7 +58,8 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
   };
 
   return (
-    <div className="space-y-6 pt-4 pb-24"> 
+    // --- MODIFICA: Aggiunto padding corretto per la pagina ---
+    <div className="p-4 sm:p-6 pb-24 space-y-6"> 
       <StatCard title="Analisi Strategica con AI" icon={BrainCircuit}>
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
           L'intelligenza artificiale analizzerà le performance dei tuoi contenuti, piattaforma per piattaforma, per fornirti un report strategico con consigli pratici.
@@ -90,6 +91,7 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
                 <div className="space-y-6 border-l-2 border-gray-200 dark:border-gray-700 pl-6 ml-3">
                     {data.analisiPerformance && (
                         <StatCard title="Performance dei Contenuti" icon={CheckCircle}>
+                        {/* --- MODIFICA: Aggiunte classi per il contrasto --- */}
                         <ReactMarkdown className="prose dark:prose-invert max-w-none text-sm">{data.analisiPerformance}</ReactMarkdown>
                         </StatCard>
                     )}
@@ -102,7 +104,7 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
                         <StatCard title="Consigli Pratici" icon={List}>
                         <ul className="space-y-2 list-disc pl-5">
                             {data.consigliAzionabili.map((consiglio, index) => (
-                            <li key={index} className="text-gray-700 dark:text-gray-300 text-sm">{consiglio}</li>
+                              <li key={index} className="text-gray-700 dark:text-gray-300 text-sm">{consiglio}</li>
                             ))}
                         </ul>
                         </StatCard>

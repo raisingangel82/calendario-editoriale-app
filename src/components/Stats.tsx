@@ -1,4 +1,3 @@
-//
 import React, { useMemo, useState } from 'react';
 import { BarChart2 as BarIcon, PieChart, CheckCircle, Clock, Award, Eye, Heart, MessageSquare } from 'lucide-react';
 import type { Post, Progetto, Categoria } from '../types';
@@ -225,7 +224,6 @@ const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardCli
                            {postsConPerformance.slice(0, 10).map((post, index) => {
                                 const progettoDelPost = progetti.find(p => p.id === post.projectId);
                                 return (
-                                    // --- MODIFICA: Da 'flex' a 'grid' per un allineamento più robusto ---
                                     <div key={post.id} className="grid grid-cols-[auto_1fr] items-center gap-4 animate-fade-in">
                                         <span className="text-xl font-bold text-gray-400 dark:text-gray-500 w-10 text-center">{index + 1}</span>
                                         <div>
@@ -274,19 +272,18 @@ export const Stats: React.FC<StatsPageProps> = ({ posts, progetti, activeView, o
                 </h1>
             </div>
             
-            <div className="flex-grow overflow-y-auto">
-                <div className="p-4 sm:p-6">
-                    {activeView === 'produzione' && <ProduzioneView posts={posts} progetti={progetti} />}
-                    {activeView === 'performance' && (
-                        <PerformanceView 
-                            posts={posts}
-                            progetti={progetti}
-                            onCardClick={onCardClick}
-                            onStatusChange={onStatusChange}
-                        />
-                    )}
-                    {activeView === 'analisiAI' && <AnalisiAIView posts={posts} />}
-                </div>
+            {/* --- MODIFICA: Rimosso il div contenitore per usare lo scroll principale dell'app --- */}
+            <div className="p-4 sm:p-6">
+                {activeView === 'produzione' && <ProduzioneView posts={posts} progetti={progetti} />}
+                {activeView === 'performance' && (
+                    <PerformanceView 
+                        posts={posts}
+                        progetti={progetti}
+                        onCardClick={onCardClick}
+                        onStatusChange={onStatusChange}
+                    />
+                )}
+                {activeView === 'analisiAI' && <AnalisiAIView posts={posts} />}
             </div>
         </div>
     );
