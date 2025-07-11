@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BellRing, Palette, Upload, Download, Settings, SlidersHorizontal, Briefcase, Star } from 'lucide-react';
+import { BellRing, Palette, Upload, Download, Settings, SlidersHorizontal, Briefcase, Star, Trash } from 'lucide-react'; // Aggiunto 'Trash' per l'icona del pulsante
 import { PlatformManager } from '../components/PlatformManager';
 import { getMessaging, getToken } from "firebase/messaging";
 import { doc, setDoc } from 'firebase/firestore';
@@ -55,6 +55,9 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
   const { baseColor, setBaseColor, colorShade, setColorShade, getActiveColor } = useTheme();
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
+  const [isCleaning, setIsCleaning] = useState(false); // Nuovo stato per la pulizia
+  const [cleanupStatus, setCleanupStatus] = useState<string | null>(null); // Nuovo stato per il messaggio di pulizia
+
 
   const handleWorkingDaysChange = (dayId: number) => {
     const newWorkingDays = workingDays.includes(dayId)
@@ -88,6 +91,39 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
       setNotificationStatus('Errore durante l\'abilitazione.');
     } finally {
       setIsSubscribing(false);
+    }
+  };
+
+  // NUOVA FUNZIONE PER LA PULIZIA DEI POST
+  const handleCleanupPosts = async () => {
+    if (!user) {
+      setCleanupStatus('Devi essere loggato per eseguire la pulizia.');
+      return;
+    }
+    setIsCleaning(true);
+    setCleanupStatus(null); // Resetta lo stato del messaggio
+    try {
+      // Chiama l'API Vercel per la pulizia dei post
+      const response = await fetch('/api/cleanupEmptyPosts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.uid }), // Invia l'ID dell'utente
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCleanupStatus(data.message); // Mostra il messaggio di successo dal backend
+      } else {
+        setCleanupStatus(`Errore: ${data.error || 'Qualcosa è andato storto.'}`); // Mostra l'errore
+      }
+    } catch (error) {
+      console.error('Errore durante la pulizia dei post:', error);
+      setCleanupStatus('Errore di rete o server. Controlla la console.');
+    } finally {
+      setIsCleaning(false); // Termina lo stato di caricamento
     }
   };
   
@@ -127,21 +163,26 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
             </SettingsCard>
 
             <SettingsCard title="Gestione Dati" icon={Briefcase}>
-                <div className="flex items-center justify-around gap-2">
+                {/* Modificato il layout per i 4 pulsanti */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <button onClick={onProjectsClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
                         <Settings size={16} /> <span className="hidden sm:inline">Progetti</span>
                     </button>
                     <button onClick={onImportClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
                         <Upload size={16} /> <span className="hidden sm:inline">Importa Dati</span>
                     </button>
-                    {/* FIX: Aggiunta la prop onExportClick al pulsante */}
                     <button onClick={onExportClick} disabled={user?.plan !== 'pro'} title={user?.plan !== 'pro' ? "Funzionalità disponibile per gli account Pro" : "Esporta l'intero database"} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
                         <Download size={16} /> <span className="hidden sm:inline">Esporta Dati</span>
                         {user?.plan !== 'pro' && (
                           <span className="ml-1.5 flex items-center gap-1 text-xs font-bold bg-yellow-400 dark:bg-yellow-500 text-yellow-900 px-1.5 py-0.5 rounded-full"><Star size={12}/> PRO</span>
                         )}
                     </button>
+                    {/* NUOVO PULSANTE PER LA PULIZIA */}
+                    <button onClick={handleCleanupPosts} disabled={isCleaning} title="Elimina i post senza metriche o con contenuto testuale vuoto" className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 text-sm transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
+                        <Trash size={16} /> {isCleaning ? 'Pulizia in corso...' : <span className="hidden sm:inline">Pulisci Post Vuoti</span>}
+                    </button>
                 </div>
+                {cleanupStatus && <p className="text-xs text-center mt-2 text-gray-500 dark:text-gray-400">{cleanupStatus}</p>}
             </SettingsCard>
              <SettingsCard title="Notifiche" icon={BellRing}>
                 <div>

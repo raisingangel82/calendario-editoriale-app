@@ -1,138 +1,242 @@
+// AnalyticsMatcher.ts
 import { db } from '../firebase';
-import { doc, updateDoc, serverTimestamp, Timestamp, type DocumentData } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, addDoc, collection, serverTimestamp, Timestamp, type DocumentData } from 'firebase/firestore';
 import { isSameDay, format, parse } from 'date-fns';
+import { enUS } from 'date-fns/locale';
 import type { Post } from '../types';
 
-// Mappa per la struttura dei file CSV
+// Questo oggetto definisce come i nomi delle colonne nel tuo file CSV
+// corrispondono ai dati che vogliamo estrarre per ogni piattaforma.
 const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'youtube': {
         date: 'Ora pubblicazione video',
         views: 'Visualizzazioni',
+        title: 'Titolo video',
+        description: 'Titolo video' // Per YouTube, usiamo il titolo come testo principale
     },
     'instagram': {
         date: 'Orario di pubblicazione',
         views: 'Copertura',
         likes: 'Mi piace',
         comments: 'Commenti',
+        description: 'Didascalia',
+        postType: 'Tipo di post'
     },
     'facebook': {
+        id: 'ID del post', // <--- QUESTA È LA MODIFICA CHIAVE QUI: AGGIUNTO L'ID PER FACEBOOK
         date: 'Orario di pubblicazione',
-        views: 'Visualizzazioni',
-        likes: 'Mi piace',
+        views: 'Copertura',
+        interactions: 'Reazioni, commenti e condivisioni',
+        likes: 'Reazioni',
         comments: 'Commenti',
+        shares: 'Condivisioni',
+        title: 'Titolo',
+        description: 'Descrizione' // Questa è la colonna con il testo principale del post Facebook
     },
     'tiktok': {
         date: 'Date',
         views: 'Video Views',
         likes: 'Likes',
-        comments: 'Comments',
+        comments: 'Comments'
+        // TikTok non ha campi di testo/titolo esportati in questo mapper
     }
 };
 
-// Funzione di parsing della data
-const parseDate = (dateStr: string, platform: string): Date | null => {
-    if (!dateStr) return null;
+// Funzione per ottenere il valore da un record CSV in modo robusto, ignorando maiuscole/minuscole.
+const getValueFromRecord = (record: DocumentData, key: string | undefined): string | null => {
+    if (!key) return null;
+    const recordKey = Object.keys(record).find(k => k.trim().toLowerCase() === key.toLowerCase());
+    return recordKey ? record[recordKey] : null;
+};
 
+// Funzione per convertire una stringa di data dal CSV in un oggetto Date.
+const parseDate = (dateStr: string | null, platform: string): Date | null => {
+    if (!dateStr) return null;
     try {
-        // Logica per TikTok (formato "30 giugno")
+        if (platform === 'youtube') {
+            return parse(dateStr, 'MMM d, yyyy', new Date(), { locale: enUS });
+        }
         if (platform === 'tiktok') {
-            const monthMap: { [key: string]: number } = {
-                'gennaio': 0, 'febbraio': 1, 'marzo': 2, 'aprile': 3, 'maggio': 4, 'giugno': 5,
-                'luglio': 6, 'agosto': 7, 'settembre': 8, 'ottobre': 9, 'novembre': 10, 'dicembre': 11
-            };
+            const monthMap: { [key: string]: number } = { 'gennaio': 0, 'febbraio': 1, 'marzo': 2, 'aprile': 3, 'maggio': 4, 'giugno': 5, 'luglio': 6, 'agosto': 7, 'settembre': 8, 'ottobre': 9, 'novembre': 10, 'dicembre': 11 };
             const parts = dateStr.split(' ');
             const day = parseInt(parts[0]);
             const month = monthMap[parts[1]?.toLowerCase()];
-            if (!isNaN(day) && month !== undefined) {
-                return new Date(new Date().getFullYear(), month, day);
-            }
+            if (!isNaN(day) && month !== undefined) return new Date(new Date().getFullYear(), month, day);
         }
-        
-        // CORREZIONE FINALE: Usa il formato MM/dd/yyyy per Facebook e Instagram
+        // Per Facebook e Instagram, prova entrambi i formati possibili (MM/dd/yyyy HH:mm o dd/MM/yyyy HH:mm)
         if (platform === 'facebook' || platform === 'instagram') {
             if (dateStr.includes('/')) {
-                // Formato corretto per date come "06/17/2025" (Mese/Giorno/Anno)
-                return parse(dateStr, 'MM/dd/yyyy HH:mm', new Date());
+                 try { return parse(dateStr, 'MM/dd/yyyy HH:mm', new Date()); } catch (e) {}
+                 try { return parse(dateStr, 'dd/MM/yyyy HH:mm', new Date()); } catch (e) {}
             }
         }
-
-        // Logica per YouTube e altri formati standard
+        // Tentativo generico come ultima risorsa
         const date = new Date(dateStr);
-        if (!isNaN(date.getTime())) {
-            return date;
-        }
-
+        if (!isNaN(date.getTime())) return date;
     } catch (e) {
         console.error(`Errore nel parsing della data "${dateStr}" per la piattaforma ${platform}`, e);
         return null;
     }
-
     return null;
 };
 
-
-// Funzione principale per l'abbinamento dei dati
+// Funzione principale per processare e confrontare i dati analytics con i post esistenti.
 export const processAndMatchAnalytics = async (
-    parsedData: DocumentData[], 
-    platform: string, 
-    existingPosts: Post[]
-): Promise<number> => {
-
+    parsedData: DocumentData[], // I dati letti dal tuo file CSV
+    platform: string,          // La piattaforma (es. 'facebook', 'youtube')
+    existingPosts: Post[],     // I post già presenti nel tuo database
+    userId: string,            // L'ID dell'utente proprietario dei post
+    importStrategy: 'update_only' | 'create_new' // Strategia: solo aggiorna o crea anche nuovi
+): Promise<{ updated: number, created: number }> => {
     const platformName = platform.toLowerCase();
     const mapper = platformCsvMappers[platformName];
     if (!mapper) {
         console.warn(`Nessuna mappatura trovata per la piattaforma '${platformName}'`);
-        return 0;
+        return { updated: 0, created: 0 };
     }
 
     let updatedPostsCount = 0;
-    let relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
-    const updatePromises: Promise<void>[] = [];
+    let createdPostsCount = 0;
+    
+    // Mappa per cercare velocemente i post di Facebook tramite il loro ID esterno.
+    const relevantDbPostsMap = new Map<string, Post>(); 
+    // Oggetto per cercare i post per data (come fallback o per altre piattaforme).
+    const relevantDbPostsByDate: { [key: string]: Post[] } = {}; 
+    
+    // Prepopola le mappe con i post esistenti per la piattaforma corrente.
+    existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName)
+                 .forEach(p => {
+                     // Se il post è di Facebook e ha già un ID esterno, lo aggiungi alla mappa per ID.
+                     if (p.externalId && platformName === 'facebook') { 
+                         relevantDbPostsMap.set(p.externalId, p);
+                     } 
+                     // Altrimenti, o in aggiunta, lo indicizzi per data.
+                     if (p.data) {
+                         const dateKey = format((p.data as Timestamp).toDate(), 'yyyy-MM-dd');
+                         if (!relevantDbPostsByDate[dateKey]) {
+                             relevantDbPostsByDate[dateKey] = [];
+                         }
+                         relevantDbPostsByDate[dateKey].push(p);
+                     }
+                 });
 
-    console.log(`--- Inizio import per '${platformName}' con ${relevantDbPosts.length} post candidati. ---`);
+    const writePromises: Promise<void>[] = []; // Array per collezionare tutte le operazioni di scrittura.
 
+    // Itera su ogni riga (record) del file CSV
     for (const record of parsedData) {
-        const csvDateStr = record[mapper.date];
-        const csvDate = parseDate(csvDateStr, platformName);
+        const csvDate = parseDate(getValueFromRecord(record, mapper.date), platformName);
+        if (!csvDate) continue; // Salta il record se la data non è valida.
+
+        // Estrai i valori delle performance (visualizzazioni, mi piace, commenti, condivisioni)
+        const viewsValue = getValueFromRecord(record, mapper.views) || (platformName === 'facebook' ? getValueFromRecord(record, mapper.interactions) : null);
+        const likesValue = getValueFromRecord(record, mapper.likes);
+        const commentsValue = getValueFromRecord(record, mapper.comments);
+        if (!viewsValue && !likesValue && !commentsValue) continue; // Salta se non ci sono dati di performance.
         
-        if (!csvDate) {
-            continue;
+        let matchingPost: Post | undefined; // Qui salveremo il post trovato nel database.
+        let facebookPostId: string | null = null; // Per l'ID di Facebook.
+
+        // --- LOGICA CHIAVE DI MATCHING ---
+        // Se è un post di Facebook, prova prima a matchare con l'ID univoco.
+        if (platformName === 'facebook' && mapper.id) {
+            facebookPostId = getValueFromRecord(record, mapper.id); // Ottieni l'ID dal CSV.
+            if (facebookPostId) {
+                matchingPost = relevantDbPostsMap.get(facebookPostId); // Cerca il post nel database per ID.
+            }
         }
         
-        const matchingPostIndex = relevantDbPosts.findIndex(p => {
-          if (!p.data) return false;
-          const dbPostDate = (p.data as Timestamp).toDate();
-          return isSameDay(dbPostDate, csvDate);
-        });
+        // Se non trovi un match con l'ID (o non è Facebook), prova a matchare per data.
+        if (!matchingPost) {
+            const dateKey = format(csvDate, 'yyyy-MM-dd');
+            const postsOnSameDay = relevantDbPostsByDate[dateKey] || [];
+            
+            // Trova il primo post con la stessa data che non è ancora stato "preso" in questa esecuzione.
+            const initialMatch = postsOnSameDay.find(p => isSameDay((p.data as Timestamp).toDate(), csvDate));
+            if (initialMatch) {
+                matchingPost = initialMatch;
+                // Rimuovi il post trovato dalla lista temporanea per evitare che venga matchato di nuovo.
+                relevantDbPostsByDate[dateKey] = relevantDbPostsByDate[dateKey].filter(p => p.id !== matchingPost?.id);
+            }
+        }
+        // --- FINE LOGICA DI MATCHING ---
 
-        if (matchingPostIndex !== -1) {
-            const matchingPost = relevantDbPosts.splice(matchingPostIndex, 1)[0];
-            updatedPostsCount++;
-            console.log(`✅ CORRISPONDENZA TROVATA per ${platformName}: "${matchingPost.titolo || 'Senza Titolo'}" in data ${format(csvDate, 'yyyy-MM-dd')}`);
-            
-            const postRef = doc(db, 'contenuti', matchingPost.id);
-            const existingMetrics = matchingPost.performance || {};
-            
-            const newMetrics: { [key: string]: any } = { lastUpdated: serverTimestamp() };
-            if(mapper.views && record[mapper.views] !== undefined) newMetrics.views = parseInt(record[mapper.views], 10) || 0;
-            if(mapper.likes && record[mapper.likes] !== undefined) newMetrics.likes = parseInt(record[mapper.likes], 10) || 0;
-            if(mapper.comments && record[mapper.comments] !== undefined) newMetrics.comments = parseInt(record[mapper.comments], 10) || 0;
-            if(mapper.shares && record[mapper.shares] !== undefined) newMetrics.shares = parseInt(record[mapper.shares], 10) || 0;
-            
-            const mergedPerformanceData = { ...existingMetrics, ...newMetrics };
-            updatePromises.push(updateDoc(postRef, { performance: mergedPerformanceData }));
+        // Prepara i dati di performance da salvare.
+        const performanceData: { [key: string]: any } = { lastUpdated: serverTimestamp() };
+        if (viewsValue) performanceData.views = parseInt(String(viewsValue).replace(/,/g, ''), 10) || 0;
+        if (likesValue) performanceData.likes = parseInt(String(likesValue).replace(/,/g, ''), 10) || 0;
+        if (commentsValue) performanceData.comments = parseInt(String(commentsValue).replace(/,/g, ''), 10) || 0;
+        if (mapper.shares && getValueFromRecord(record, mapper.shares)) performanceData.shares = parseInt(String(getValueFromRecord(record, mapper.shares)).replace(/,/g, ''), 10) || 0;
+        
+        const postTitle = getValueFromRecord(record, mapper.title);
+        const postDescription = getValueFromRecord(record, mapper.description);
+        const postType = getValueFromRecord(record, mapper.postType);
 
-        } else {
-            console.log(`❌ NESSUNA CORRISPONDENZA DISPONIBILE nel DB per un post del ${format(csvDate, 'yyyy-MM-dd')}.`);
+        if (matchingPost) { // Se è stato trovato un post esistente nel database:
+            updatedPostsCount++; // Incrementa il contatore degli aggiornati.
+            
+            const metricsDocRef = doc(db, 'performanceMetrics', matchingPost.id);
+            // Aggiorna le metriche di performance.
+            writePromises.push(setDoc(metricsDocRef, performanceData, { merge: true }));
+            
+            const postDocRef = doc(db, 'contenuti', matchingPost.id);
+            const postUpdateData: { [key: string]: any } = {};
+            
+            // Per Facebook, usa la 'Descrizione' del CSV come 'Titolo' del post nel database.
+            if (platformName === 'facebook' && postDescription != null) {
+                postUpdateData.titolo = postDescription;
+            } else if (postTitle != null) {
+                postUpdateData.titolo = postTitle;
+            }
+
+            // Aggiorna descrizione e testo.
+            if (postDescription != null) {
+                postUpdateData.descrizione = postDescription;
+                postUpdateData.testo = postDescription;
+            }
+            if (postType != null) postUpdateData.tipoContenuto = postType;
+            
+            // Se è un post di Facebook e non ha ancora un 'externalId' nel database, salvalo.
+            if (platformName === 'facebook' && facebookPostId && !matchingPost.externalId) {
+                postUpdateData.externalId = facebookPostId;
+            }
+            
+            // Se ci sono dati da aggiornare, aggiungi l'operazione al batch.
+            if (Object.keys(postUpdateData).length > 0) {
+                writePromises.push(updateDoc(postDocRef, postUpdateData));
+            }
+
+        } else if (importStrategy === 'create_new') { // Se non è stato trovato un post e la strategia è "crea nuovo":
+            createdPostsCount++; // Incrementa il contatore dei creati.
+            
+            // Prepara i dati per il nuovo post.
+            const newPostData = {
+                userId,
+                // Per Facebook, usa la 'Descrizione' del CSV come 'Titolo' del nuovo post.
+                titolo: (platformName === 'facebook' && postDescription) || postTitle || `Contenuto importato (${platformName}) - ${format(csvDate, 'dd/MM/yyyy')}`,
+                data: Timestamp.fromDate(csvDate),
+                piattaforma: platform,
+                statoProdotto: true,
+                statoPubblicato: true,
+                descrizione: postDescription || "Testo non disponibile nel file.",
+                testo: postDescription || "Testo non disponibile nel file.",
+                note: "Creato da importazione analytics.",
+                projectId: null,
+                tipoContenuto: postType || 'Importato'
+            };
+            
+            // Se è un nuovo post di Facebook, salva subito l'ID esterno.
+            if (platformName === 'facebook' && facebookPostId) {
+                (newPostData as any).externalId = facebookPostId;
+            }
+
+            // Aggiungi il nuovo post e le sue metriche al database.
+            const newPostRef = await addDoc(collection(db, 'contenuti'), newPostData);
+            const newMetricsDocRef = doc(db, 'performanceMetrics', newPostRef.id);
+            writePromises.push(setDoc(newMetricsDocRef, performanceData));
         }
     }
 
-    try {
-        await Promise.all(updatePromises);
-    } catch (error) {
-        console.error(`Errore durante l'aggiornamento di uno o più documenti per ${platformName}:`, error);
-    }
-
-    console.log(`--- Fine import per '${platformName}'. Trovate e processate ${updatedPostsCount} corrispondenze. ---`);
-    return updatedPostsCount;
+    // Esegui tutte le operazioni di scrittura in parallelo.
+    await Promise.all(writePromises);
+    return { updated: updatedPostsCount, created: createdPostsCount };
 };

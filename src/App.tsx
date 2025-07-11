@@ -1,48 +1,40 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { db, auth } from './firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
 import { signOut, type User } from 'firebase/auth';
 import { Plus, Download, UploadCloud, BarChart3, Wand, LockKeyhole } from 'lucide-react';
-import { format, isSameDay } from 'date-fns';
+import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import Papa from 'papaparse';
-
 import { DndContext, useSensor, useSensors, MouseSensor, TouchSensor, closestCenter, type DragEndEvent } from '@dnd-kit/core';
-
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { useBreakpoint } from './hooks/useBreakpoint';
-import { processAndMatchAnalytics } from './services/AnalyticsMatcher'; 
-
+import { processAndMatchAnalytics } from './services/AnalyticsMatcher';
 import { Sidebar } from './components/Sidebar';
 import { BottomBar } from './components/BottomBar';
 import { Header } from './components/Header';
 import { ScrollToTop } from './components/ScrollToTop';
-
 import { Calendario } from './components/Calendario';
 import { FilteredListView } from './components/FilteredListView';
 import { Stats } from './components/Stats';
 import { Impostazioni } from './pages/Impostazioni';
 import { Auth } from './components/Auth';
 import { allDefaultPlatforms } from './data/defaultPlatforms';
-
 import { ContenutoModal } from './components/ContenutoModal';
 import { ImportModal } from './components/ImportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
 import { ExportModal } from './components/ExportModal';
+// --- MODIFICA CHIAVE: Corretto l'import con le parentesi graffe ---
 import { AnalyticsImportModal } from './components/AnalyticsImportModal';
-
 import type { Post, Progetto, Categoria, PlatformData } from './types';
 
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipo = (tipoContenuto || "").toLowerCase();
-    
     if (tipo === 'testo breve con immagine') return 'Testo';
-    
     if (['reel', 'video', 'vlog', 'booktrailer'].some(term => tipo.includes(term))) return 'Video';
     if (['immagine', 'carousel', 'grafica'].some(term => tipo.includes(term))) return 'Immagine';
-    
     return 'Testo';
 };
 
@@ -61,7 +53,6 @@ const normalizeDateToMillis = (date: any): number => {
     return 0;
 };
 
-// Interfaccia per l'oggetto utente arricchito
 interface FullUser extends User {
   plan?: string;
 }
@@ -75,35 +66,21 @@ function MainLayout() {
   const [progetti, setProgetti] = useState<Progetto[]>([]);
   const [platforms, setPlatforms] = useState<PlatformData[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-
   const [isProUser, setIsProUser] = useState(false);
   const [fullUser, setFullUser] = useState<FullUser | null>(null);
-
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
-  
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
-  
   const [actionConfig, setActionConfig] = useState({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
   const [statsActiveView, setStatsActiveView] = useState<'produzione' | 'performance' | 'analisiAI'>('produzione');
 
   const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    })
+    useSensor(MouseSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
   );
 
   useEffect(() => {
@@ -146,7 +123,6 @@ function MainLayout() {
     const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
     const unsubPosts = onSnapshot(qPosts, async (snapshot) => {
         const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[];
-        
         const postsConPerformance = await Promise.all(
             postsData.map(async (post) => {
                 const performanceDocRef = doc(db, 'performanceMetrics', post.id);
@@ -161,7 +137,6 @@ function MainLayout() {
                 return post;
             })
         );
-        
         setPosts(postsConPerformance);
         setLoadingData(false);
     });
@@ -169,11 +144,7 @@ function MainLayout() {
     const qPlatforms = query(collection(db, "platforms"), where("userId", "==", user.uid));
     const unsubPlatforms = onSnapshot(qPlatforms, (snapshot) => {
         const customPlatforms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as PlatformData[];
-        if (customPlatforms.length > 0) {
-            setPlatforms(customPlatforms);
-        } else {
-            setPlatforms(allDefaultPlatforms);
-        }
+        setPlatforms(customPlatforms.length > 0 ? customPlatforms : allDefaultPlatforms);
     });
     
     return () => { 
@@ -219,7 +190,6 @@ function MainLayout() {
   }, [location.pathname, statsActiveView, isProUser]);
   
   const handleSetWorkingDays = async (days: number[]) => {
-      setWorkingDays(days);
       if(user) await setDoc(doc(db, 'userPreferences', user.uid), { workingDays: days }, { merge: true });
   };
 
@@ -242,6 +212,7 @@ function MainLayout() {
   };
   const handleDeletePost = async (id: string) => {
     await deleteDoc(doc(db, 'contenuti', id));
+    await deleteDoc(doc(db, 'performanceMetrics', id));
     handleCloseModals();
   };
 
@@ -249,34 +220,22 @@ function MainLayout() {
     const ref = doc(db, 'contenuti', id);
     const post = posts.find(p => p.id === id);
     if (!post) return;
-
     const updateData: any = {};
-    
     switch (field) {
         case 'statoProdotto':
             updateData.statoProdotto = value;
-            if (!value) {
-                updateData.statoMontato = false;
-                updateData.statoPubblicato = false;
-            }
+            if (!value) { updateData.statoMontato = false; updateData.statoPubblicato = false; }
             break;
-        
         case 'statoMontato':
             updateData.statoMontato = value;
-            if (value) {
-                updateData.statoProdotto = true;
-            } else {
-                updateData.statoPubblicato = false;
-            }
+            if (value) updateData.statoProdotto = true;
+            else updateData.statoPubblicato = false;
             break;
-
         case 'statoPubblicato':
             updateData.statoPubblicato = value;
             if (value) {
                 updateData.statoProdotto = true;
-                if (isMediaContent(post.tipoContenuto)) {
-                    updateData.statoMontato = true;
-                }
+                if (isMediaContent(post.tipoContenuto)) updateData.statoMontato = true;
             }
             break;
     }
@@ -285,7 +244,7 @@ function MainLayout() {
 
   const handleDuplicatePost = async (post: Post) => {
     if (user) {
-      const { id, ...data } = post;
+      const { id, performance, ...data } = post;
       await addDoc(collection(db, 'contenuti'), { ...data, userId: user.uid, statoProdotto: false, statoPubblicato: false });
       handleCloseModals();
     }
@@ -339,8 +298,12 @@ function MainLayout() {
     await deleteDoc(doc(db, 'platforms', id));
   };
 
-  const handleAnalyticsImport = (parsedData: any[], platformName: string): Promise<number | void> => {
-    return processAndMatchAnalytics(parsedData, platformName, posts);
+  const handleAnalyticsImport = (parsedData: any[], platformName: string, strategy: 'update_only' | 'create_new'): Promise<{updated: number, created: number} | void> => {
+    if (!user) {
+        console.error("Utente non autenticato. Impossibile importare.");
+        return Promise.resolve({updated: 0, created: 0});
+    }
+    return processAndMatchAnalytics(parsedData, platformName, posts, user.uid, strategy);
   };
   
   const handleDragEnd = (event: DragEndEvent) => {

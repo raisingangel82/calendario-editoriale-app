@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DndContext, useDroppable } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, setHours, getDay } from 'date-fns';
+import { addWeeks, format, startOfWeek, addDays, isEqual, startOfDay, setHours, getDay, differenceInWeeks } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { ContenutoCard } from './ContenutoCard';
 import type { Post, Progetto } from '../types';
@@ -24,33 +24,66 @@ interface CalendarioProps {
     onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
 }
 
+const normalizeDate = (date: any): Date | null => {
+    if (!date) return null;
+    if (date instanceof Timestamp) return date.toDate();
+    if (date instanceof Date) return date;
+    const parsed = new Date(date);
+    return isNaN(parsed.getTime()) ? null : parsed;
+};
+
 export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, workingDays = [1, 2, 3, 4, 5], onCardClick, onStatusChange }) => {
     const { getActiveColor } = useTheme();
     const isDesktop = useBreakpoint();
     const [oggi] = useState(() => startOfDay(new Date()));
     const [weeks, setWeeks] = useState<Date[][]>([]);
 
+    const dateEstremes = useMemo(() => {
+        if (posts.length === 0) return { first: addDays(oggi, -21), last: addWeeks(oggi, 8) };
+        
+        let minDate = new Date();
+        let maxDate = new Date();
+
+        posts.forEach((post, index) => {
+            const currentDate = normalizeDate(post.data);
+            if (!currentDate) return;
+
+            if (index === 0) {
+                minDate = currentDate;
+                maxDate = currentDate;
+            } else {
+                if (currentDate < minDate) minDate = currentDate;
+                if (currentDate > maxDate) maxDate = currentDate;
+            }
+        });
+
+        // Assicura che la vista includa almeno oggi
+        if (minDate > oggi) minDate = oggi;
+        if (maxDate < oggi) maxDate = oggi;
+
+        return { first: minDate, last: addWeeks(maxDate, 1) }; // Aggiungi una settimana di buffer alla fine
+    }, [posts, oggi]);
+
     useEffect(() => {
-        const dataInizioCalendario = startOfWeek(addDays(oggi, -21), { weekStartsOn: 1 });
-        const weekArray = Array.from({ length: 12 }, (_, i) => {
+        const dataInizioCalendario = startOfWeek(dateEstremes.first, { weekStartsOn: 1 });
+        const dataFineCalendario = startOfWeek(dateEstremes.last, { weekStartsOn: 1 });
+        const weekCount = differenceInWeeks(dataFineCalendario, dataInizioCalendario) + 1;
+
+        const weekArray = Array.from({ length: weekCount > 0 ? weekCount : 12 }, (_, i) => {
             const settimanaInizio = addWeeks(dataInizioCalendario, i);
             return Array.from({ length: 7 }, (_, j) => addDays(settimanaInizio, j))
                 .filter(day => workingDays.includes(getDay(day)));
         });
         setWeeks(weekArray.filter(week => week.length > 0));
-    }, [workingDays, oggi]);
+    }, [workingDays, dateEstremes]);
 
     useEffect(() => {
         const scrollTimer = setTimeout(() => {
             const scrollContainer = document.getElementById('main-scroll-container');
             if (!scrollContainer || weeks.length === 0) return;
 
-            let targetDay;
-            const isTodayWorkingDay = workingDays.includes(getDay(oggi));
-
-            if (isTodayWorkingDay) {
-                targetDay = oggi;
-            } else {
+            let targetDay = oggi;
+            if (!workingDays.includes(getDay(oggi))) {
                 let nextDay = addDays(oggi, 1);
                 while (!workingDays.includes(getDay(nextDay))) {
                     nextDay = addDays(nextDay, 1);
@@ -58,21 +91,9 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
                 targetDay = nextDay;
             }
 
-            let targetId;
-            if (isDesktop) {
-                const targetWeek = weeks.find(week => 
-                    week.some(day => isEqual(startOfDay(day), startOfDay(targetDay)))
-                );
-                if (targetWeek && targetWeek.length > 0) {
-                    targetId = `week-${format(targetWeek[0], 'yyyy-ww')}`;
-                } else {
-                    targetId = `week-${format(targetDay, 'yyyy-ww')}`;
-                }
-            } else {
-                targetId = `day-${format(targetDay, 'yyyy-MM-dd')}`;
-            }
-                
+            const targetId = isDesktop ? `week-${format(targetDay, 'yyyy-ww')}` : `day-${format(targetDay, 'yyyy-MM-dd')}`;
             const targetElement = document.getElementById(targetId);
+
             if (targetElement) {
                 const headerOffset = document.querySelector('header')?.offsetHeight || 0;
                 const topPosition = targetElement.offsetTop - headerOffset;
@@ -84,7 +105,11 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
 
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
-        if (over && active.id !== over.id) await updateDoc(doc(db, 'contenuti', active.id as string), { data: Timestamp.fromDate(setHours(new Date(over.id as string), 9)) });
+        if (over && active.id !== over.id) {
+            await updateDoc(doc(db, 'contenuti', active.id as string), { 
+                data: Timestamp.fromDate(setHours(new Date(over.id as string), 9)) 
+            });
+        }
     };
 
     if (isDesktop) {
@@ -94,20 +119,14 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
                     <div className="space-y-8">
                         {weeks.map((settimana, index) => { 
                             if (settimana.length === 0) return null;
-                            
-                            // [MODIFICA] La classe dinamica grid-cols-* viene rimossa
-                            // const gridColsClass = `grid-cols-${settimana.length}`;
-
                             return (
                                 <div key={index} id={`week-${format(settimana[0], 'yyyy-ww')}`}>
                                     <h3 className="text-lg font-medium mb-4 text-gray-600 dark:text-gray-400">{format(settimana[0], 'dd MMM', { locale: it })} - {format(settimana[settimana.length - 1], 'dd MMM', { locale: it })}</h3>
                                     <div className="border-l border-t border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800">
-                                        {/* [MODIFICA] Viene applicato uno stile in linea per creare la griglia dinamicamente */}
                                         <div className="grid" style={{ gridTemplateColumns: `repeat(${settimana.length}, minmax(0, 1fr))` }}>
                                             {settimana.map(giorno => {
                                                 const isToday = isEqual(startOfDay(giorno), oggi);
                                                 const headerClass = isToday ? `${getActiveColor('bg')} text-white font-bold` : 'bg-white dark:bg-gray-800';
-                                                
                                                 return (
                                                     <div key={`header-${giorno.toISOString()}`} className={`p-3 text-center border-r border-b border-gray-200 dark:border-gray-700 ${headerClass}`}>
                                                         <h4 className={`font-semibold uppercase text-xs tracking-wider ${isToday ? 'text-white' : 'text-gray-500 dark:text-gray-400'}`}>{format(giorno, 'eeee', {locale: it})}</h4>
@@ -116,11 +135,10 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
                                                 );
                                             })}
                                         </div>
-                                        {/* [MODIFICA] Lo stesso stile in linea viene applicato anche qui */}
                                         <div className="grid" style={{ gridTemplateColumns: `repeat(${settimana.length}, minmax(0, 1fr))` }}>
                                             {settimana.map(giorno => {
                                                 const dropZoneId = giorno.toISOString();
-                                                const contenuti = posts.filter(p => p.data && isEqual(startOfDay((p.data as Timestamp).toDate()), startOfDay(giorno))).sort((a,b) => (a.data as Timestamp).toMillis() - (b.data as Timestamp).toMillis());
+                                                const contenuti = posts.filter(p => p.data && isEqual(startOfDay(normalizeDate(p.data)!), startOfDay(giorno))).sort((a,b) => normalizeDate(a.data)!.getTime() - normalizeDate(b.data)!.getTime());
                                                 return (
                                                     <div key={dropZoneId} className="w-full border-r border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                                                         <DropZone id={dropZoneId}>
@@ -128,13 +146,9 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
                                                                 const progetto = progetti.find(p => p.id === post.projectId);
                                                                 return (
                                                                     <ContenutoCard
-                                                                        key={post.id}
-                                                                        post={post}
-                                                                        onCardClick={onCardClick}
-                                                                        onStatusChange={onStatusChange}
-                                                                        isDraggable={true}
-                                                                        projectColor={progetto?.color}
-                                                                        nomeProgetto={progetto?.nome}
+                                                                        key={post.id} post={post} onCardClick={onCardClick}
+                                                                        onStatusChange={onStatusChange} isDraggable={true}
+                                                                        projectColor={progetto?.color} nomeProgetto={progetto?.nome}
                                                                     />
                                                                 );
                                                             })}
@@ -153,14 +167,13 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
         );
     }
 
-    // La vista mobile rimane invariata
     return (
         <div className="space-y-4 p-4">
             {weeks.flat().map(giorno => {
                 const isToday = isEqual(startOfDay(giorno), oggi);
                 const dayId = `day-${format(giorno, 'yyyy-MM-dd')}`;
                 const headerClass = isToday ? `${getActiveColor('bg')} text-white` : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200';
-                const contenuti = posts.filter(p => p.data && isEqual(startOfDay((p.data as Timestamp).toDate()), startOfDay(giorno))).sort((a,b) => (a.data as Timestamp).toMillis() - (b.data as Timestamp).toMillis());
+                const contenuti = posts.filter(p => p.data && isEqual(startOfDay(normalizeDate(p.data)!), startOfDay(giorno))).sort((a,b) => normalizeDate(a.data)!.getTime() - normalizeDate(b.data)!.getTime());
                 return (
                     <div key={giorno.toISOString()} id={dayId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                         <h4 className={`font-bold text-sm p-3 border-b border-gray-200 dark:border-gray-700 capitalize transition-colors ${headerClass}`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4>
@@ -169,13 +182,9 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
                                 contenuti.map(post => {
                                     const progetto = progetti.find(p => p.id === post.projectId);
                                     return (<ContenutoCard
-                                        key={post.id}
-                                        post={post}
-                                        onCardClick={onCardClick}
-                                        onStatusChange={onStatusChange}
-                                        isDraggable={false}
-                                        projectColor={progetto?.color}
-                                        nomeProgetto={progetto?.nome}
+                                        key={post.id} post={post} onCardClick={onCardClick}
+                                        onStatusChange={onStatusChange} isDraggable={false}
+                                        projectColor={progetto?.color} nomeProgetto={progetto?.nome}
                                         isMobileView={true}
                                     />);
                                 })
