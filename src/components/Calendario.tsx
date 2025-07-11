@@ -9,6 +9,7 @@ import { ContenutoCard } from './ContenutoCard';
 import type { Post, Progetto } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useBreakpoint } from '../hooks/useBreakpoint';
+import { ArrowDownToLine, ArrowUpToLine } from 'lucide-react'; // Importa l'icona per lo scroll
 
 const DropZone: React.FC<{ id: string; children: React.ReactNode; }> = ({ id, children }) => {
     const { setNodeRef, isOver } = useDroppable({ id });
@@ -37,6 +38,8 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
     const isDesktop = useBreakpoint();
     const [oggi] = useState(() => startOfDay(new Date()));
     const [weeks, setWeeks] = useState<Date[][]>([]);
+    // Nuovo stato per controllare lo scorrimento automatico
+    const [isAutoScrollEnabled, setIsAutoScrollEnabled] = useState(true); 
 
     const dateEstremes = useMemo(() => {
         if (posts.length === 0) return { first: addDays(oggi, -21), last: addWeeks(oggi, 8) };
@@ -77,7 +80,10 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
         setWeeks(weekArray.filter(week => week.length > 0));
     }, [workingDays, dateEstremes]);
 
+    // Modifica dell'useEffect per lo scorrimento automatico
     useEffect(() => {
+        if (!isAutoScrollEnabled) return; // Scorre solo se abilitato
+
         const scrollTimer = setTimeout(() => {
             const scrollContainer = document.getElementById('main-scroll-container');
             if (!scrollContainer || weeks.length === 0) return;
@@ -97,11 +103,11 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
             if (targetElement) {
                 const headerOffset = document.querySelector('header')?.offsetHeight || 0;
                 const topPosition = targetElement.offsetTop - headerOffset;
-                scrollContainer.scrollTo({ top: Math.max(0, topPosition), behavior: 'auto' });
+                scrollContainer.scrollTo({ top: Math.max(0, topPosition), behavior: 'smooth' }); // Cambiato in 'smooth' per uno scorrimento più gradevole
             }
         }, 100);
         return () => clearTimeout(scrollTimer);
-    }, [isDesktop, weeks, oggi, workingDays]);
+    }, [isAutoScrollEnabled, isDesktop, weeks, oggi, workingDays]); // Aggiunto isAutoScrollEnabled alle dipendenze
 
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
@@ -115,6 +121,20 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
     if (isDesktop) {
         return (
             <div className="p-6">
+                <div className="flex justify-end mb-4">
+                    <button
+                        onClick={() => setIsAutoScrollEnabled(!isAutoScrollEnabled)}
+                        className={`flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-colors
+                                    ${isAutoScrollEnabled 
+                                        ? `${getActiveColor('bg')} text-white hover:${getActiveColor('bg-dark')}` 
+                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                                    }`}
+                        title={isAutoScrollEnabled ? "Disattiva scorrimento automatico" : "Attiva scorrimento automatico"}
+                    >
+                        {isAutoScrollEnabled ? <ArrowDownToLine size={18} /> : <ArrowUpToLine size={18} />}
+                        <span className="hidden sm:inline">{isAutoScrollEnabled ? 'Scroll Auto ON' : 'Scroll Auto OFF'}</span>
+                    </button>
+                </div>
                 <DndContext onDragEnd={handleDragEnd}>
                     <div className="space-y-8">
                         {weeks.map((settimana, index) => { 
@@ -169,6 +189,20 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
 
     return (
         <div className="space-y-4 p-4">
+            <div className="flex justify-end mb-4">
+                 <button
+                    onClick={() => setIsAutoScrollEnabled(!isAutoScrollEnabled)}
+                    className={`flex items-center gap-2 py-2 px-4 rounded-lg text-sm font-semibold transition-colors
+                                ${isAutoScrollEnabled 
+                                    ? `${getActiveColor('bg')} text-white hover:${getActiveColor('bg-dark')}` 
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                                }`}
+                    title={isAutoScrollEnabled ? "Disattiva scorrimento automatico" : "Attiva scorrimento automatico"}
+                >
+                    {isAutoScrollEnabled ? <ArrowDownToLine size={18} /> : <ArrowUpToLine size={18} />}
+                    <span className="hidden sm:inline">{isAutoScrollEnabled ? 'Scroll Auto ON' : 'Scroll Auto OFF'}</span>
+                </button>
+            </div>
             {weeks.flat().map(giorno => {
                 const isToday = isEqual(startOfDay(giorno), oggi);
                 const dayId = `day-${format(giorno, 'yyyy-MM-dd')}`;
