@@ -38,7 +38,7 @@ export default async function handler(
     });
     
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
     
     // MODIFICA CHIAVE: Prompt per analisi per singola piattaforma
     const prompt = `
