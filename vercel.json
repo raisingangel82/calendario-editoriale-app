@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/api/generateReport.ts": {
+      "maxDuration": 60
+    }
+  }
+}

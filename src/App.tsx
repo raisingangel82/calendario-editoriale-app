@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { db, auth } from './firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { signOut, type User } from 'firebase/auth';
-import { Plus, Download, UploadCloud } from 'lucide-react';
+import { Plus, Download, UploadCloud, BarChart3, Wand } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { it } from 'date-fns/locale';
 import Papa from 'papaparse';
@@ -35,18 +35,14 @@ import { AnalyticsImportModal } from './components/AnalyticsImportModal';
 
 import type { Post, Progetto, Categoria, PlatformData } from './types';
 
-// --- MODIFICA: La funzione ora gestisce correttamente il caso specifico ---
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipo = (tipoContenuto || "").toLowerCase();
     
-    // Controlla prima i casi specifici che potrebbero essere ambigui
     if (tipo === 'testo breve con immagine') return 'Testo';
     
-    // Poi continua con le regole generali
     if (['reel', 'video', 'vlog', 'booktrailer'].some(term => tipo.includes(term))) return 'Video';
     if (['immagine', 'carousel', 'grafica'].some(term => tipo.includes(term))) return 'Immagine';
     
-    // Se nessuna corrispondenza, è 'Testo'
     return 'Testo';
 };
 
@@ -85,7 +81,7 @@ function MainLayout() {
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
   
   const [actionConfig, setActionConfig] = useState({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
-  const [statsActiveView, setStatsActiveView] = useState<'produzione' | 'performance'>('produzione');
+  const [statsActiveView, setStatsActiveView] = useState<'produzione' | 'performance' | 'analisiAI'>('produzione');
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -135,22 +131,34 @@ function MainLayout() {
   }, [user]);
 
   useEffect(() => {
-    if (location.pathname !== '/stats') { setStatsActiveView('produzione'); }
-    if (location.pathname === '/stats') { return; }
-
-    switch (location.pathname) {
-        case '/todo':
-            setActionConfig({ icon: Download, onClick: () => setIsExportModalOpen(true), label: 'Esporta Contenuti' });
+    if (location.pathname !== '/stats') {
+      setStatsActiveView('produzione');
+      switch (location.pathname) {
+          case '/todo':
+              setActionConfig({ icon: Download, onClick: () => setIsExportModalOpen(true), label: 'Esporta Contenuti' });
+              break;
+          case '/utility':
+              setActionConfig({ icon: UploadCloud, onClick: () => setIsAnalyticsModalOpen(true), label: 'Importa Analytics' });
+              break;
+          case '/':
+          default:
+              setActionConfig({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
+              break;
+      }
+    } else {
+      switch (statsActiveView) {
+        case 'produzione':
+            setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('performance'), label: 'Vai a Performance' });
             break;
-        case '/utility':
-            setActionConfig({ icon: UploadCloud, onClick: () => setIsAnalyticsModalOpen(true), label: 'Importa Analytics' });
+        case 'performance':
+            setActionConfig({ icon: Wand, onClick: () => setStatsActiveView('analisiAI'), label: 'Genera Analisi AI' });
             break;
-        case '/':
-        default:
-            setActionConfig({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
+        case 'analisiAI':
+            setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('produzione'), label: 'Torna a Produzione' });
             break;
+      }
     }
-  }, [location.pathname]);
+  }, [location.pathname, statsActiveView]);
   
   const handleSetWorkingDays = async (days: number[]) => {
       setWorkingDays(days);
@@ -297,8 +305,6 @@ function MainLayout() {
                 posts={posts} 
                 progetti={progetti}
                 activeView={statsActiveView}
-                onViewChange={setStatsActiveView}
-                setActionConfig={setActionConfig}
                 onCardClick={setSelectedPost}
                 onStatusChange={handleStatusChange}
               />

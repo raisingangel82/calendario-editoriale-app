@@ -1,17 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BarChart2 as BarIcon, PieChart, CheckCircle, Clock, Award, Eye, Heart, MessageSquare } from 'lucide-react';
 import type { Post, Progetto, Categoria } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { getColor, projectColorPalette } from '../data/colorPalette';
 import { ContenutoCard } from './ContenutoCard';
 import { PlatformIcon } from './PlatformIcon';
+import { AnalisiAIView } from './AnalisiAIView';
 
 interface StatsPageProps {
     posts: Post[];
     progetti: Progetto[];
-    activeView: 'produzione' | 'performance';
-    onViewChange: (view: 'produzione' | 'performance') => void;
-    setActionConfig: (config: { icon: React.ElementType; onClick: () => void; label: string; }) => void;
+    activeView: 'produzione' | 'performance' | 'analisiAI';
     onCardClick: (post: Post) => void;
     onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
 }
@@ -48,7 +47,6 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
         return { creati, daCreare: posts.length - creati };
     }, [posts]);
 
-    // STATS PER PROGETTO SINGOLO (logica invariata)
     const statsProgettoSelezionato = useMemo(() => {
         if (activeProjectId === 'all') return null;
         const progetto = progetti.find(p => p.id === activeProjectId);
@@ -75,7 +73,6 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
         return { nome: progetto.nome, perCategoria, color: progetto.color };
     }, [activeProjectId, posts, progetti]);
 
-    // STATS AGGREGATE PER "NESSUN FILTRO"
     const statsTuttiIProgetti = useMemo(() => {
         const perCategoria: Record<Categoria, { prodotti: number, totali: number }> = {
             Testo: { prodotti: 0, totali: 0 },
@@ -83,7 +80,6 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
             Video: { prodotti: 0, totali: 0 },
         };
 
-        // Itera su TUTTI i post, senza filtrare per progetto
         posts.forEach(p => {
             const categoria = getCategoriaGenerica(p.tipoContenuto);
             if (perCategoria[categoria]) {
@@ -97,7 +93,6 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
         return { perCategoria }; 
     }, [posts]);
 
-    // Determina quali dati visualizzare in base alla selezione
     const statsDaVisualizzare = activeProjectId === 'all' 
         ? statsTuttiIProgetti 
         : statsProgettoSelezionato;
@@ -137,7 +132,7 @@ const ProduzioneView: React.FC<{ posts: Post[], progetti: Progetto[] }> = ({ pos
                                 const statsCategoria = statsDaVisualizzare.perCategoria[cat];
                                 if (statsCategoria.totali === 0) return null;
 
-                                const percentage = (statsCategoria.prodotti / statsCategoria.totali) * 100;
+                                const percentage = statsCategoria.totali > 0 ? (statsCategoria.prodotti / statsCategoria.totali) * 100 : 0;
                                 
                                 const barColor = activeProjectId !== 'all' && statsProgettoSelezionato?.color
                                     ? getColor(statsProgettoSelezionato.color, colorShade).bgClass
@@ -229,9 +224,10 @@ const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardCli
                            {postsConPerformance.slice(0, 10).map((post, index) => {
                                 const progettoDelPost = progetti.find(p => p.id === post.projectId);
                                 return (
-                                    <div key={post.id} className="flex items-center gap-4 animate-fade-in">
-                                        <span className="text-xl font-bold text-gray-400 dark:text-gray-500 w-8 text-center">{index + 1}</span>
-                                        <div className="flex-grow">
+                                    // --- MODIFICA: Da 'flex' a 'grid' per un allineamento più robusto ---
+                                    <div key={post.id} className="grid grid-cols-[auto_1fr] items-center gap-4 animate-fade-in">
+                                        <span className="text-xl font-bold text-gray-400 dark:text-gray-500 w-10 text-center">{index + 1}</span>
+                                        <div>
                                             <ContenutoCard
                                                 post={post}
                                                 nomeProgetto={progettoDelPost?.nome}
@@ -257,34 +253,39 @@ const PerformanceView: React.FC<{ posts: Post[], progetti: Progetto[], onCardCli
     );
 };
 
-export const Stats: React.FC<StatsPageProps> = ({ posts, progetti, activeView, onViewChange, setActionConfig, onCardClick, onStatusChange }) => {
+
+export const Stats: React.FC<StatsPageProps> = ({ posts, progetti, activeView, onCardClick, onStatusChange }) => {
     
-    useEffect(() => {
-        if (activeView === 'produzione') {
-            setActionConfig({ icon: BarIcon, onClick: () => onViewChange('performance'), label: 'Passa a Performance' });
-        } else {
-            setActionConfig({ icon: PieChart, onClick: () => onViewChange('produzione'), label: 'Passa a Produzione' });
+    const getPageTitle = () => {
+        switch(activeView) {
+            case 'produzione': return 'Statistiche di Produzione';
+            case 'performance': return 'Statistiche di Performance';
+            case 'analisiAI': return 'Analisi Strategica AI';
+            default: return 'Statistiche';
         }
-    }, [activeView, onViewChange, setActionConfig]);
+    };
 
     return (
         <div className="h-full flex flex-col">
             <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
-                    Statistiche di {activeView === 'produzione' ? 'Produzione' : 'Performance'}
+                    {getPageTitle()}
                 </h1>
             </div>
             
-            <div className="flex-grow overflow-y-auto p-4 sm:p-6 pb-20">
-                {activeView === 'produzione' && <ProduzioneView posts={posts} progetti={progetti} />}
-                {activeView === 'performance' && (
-                    <PerformanceView 
-                        posts={posts}
-                        progetti={progetti}
-                        onCardClick={onCardClick}
-                        onStatusChange={onStatusChange}
-                    />
-                )}
+            <div className="flex-grow overflow-y-auto">
+                <div className="p-4 sm:p-6">
+                    {activeView === 'produzione' && <ProduzioneView posts={posts} progetti={progetti} />}
+                    {activeView === 'performance' && (
+                        <PerformanceView 
+                            posts={posts}
+                            progetti={progetti}
+                            onCardClick={onCardClick}
+                            onStatusChange={onStatusChange}
+                        />
+                    )}
+                    {activeView === 'analisiAI' && <AnalisiAIView posts={posts} />}
+                </div>
             </div>
         </div>
     );
