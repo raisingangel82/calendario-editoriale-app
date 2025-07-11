@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/generateReport.cjs": {
+    "api/generateReport.ts": {
       "maxDuration": 60
     }
   }
