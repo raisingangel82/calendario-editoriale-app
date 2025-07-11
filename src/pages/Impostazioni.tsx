@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BellRing, Palette, Upload, Download, Settings, SlidersHorizontal, Briefcase, Star, Trash } from 'lucide-react'; // Aggiunto 'Trash' per l'icona del pulsante
+import { BellRing, Palette, Upload, Download, Settings, SlidersHorizontal, Briefcase, Star } from 'lucide-react'; // 'Trash' rimosso
 import { PlatformManager } from '../components/PlatformManager';
 import { getMessaging, getToken } from "firebase/messaging";
 import { doc, setDoc } from 'firebase/firestore';
@@ -55,9 +55,7 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
   const { baseColor, setBaseColor, colorShade, setColorShade, getActiveColor } = useTheme();
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
-  const [isCleaning, setIsCleaning] = useState(false); // Nuovo stato per la pulizia
-  const [cleanupStatus, setCleanupStatus] = useState<string | null>(null); // Nuovo stato per il messaggio di pulizia
-
+  // Stati isCleaning e cleanupStatus rimossi
 
   const handleWorkingDaysChange = (dayId: number) => {
     const newWorkingDays = workingDays.includes(dayId)
@@ -94,38 +92,7 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
     }
   };
 
-  // NUOVA FUNZIONE PER LA PULIZIA DEI POST
-  const handleCleanupPosts = async () => {
-    if (!user) {
-      setCleanupStatus('Devi essere loggato per eseguire la pulizia.');
-      return;
-    }
-    setIsCleaning(true);
-    setCleanupStatus(null); // Resetta lo stato del messaggio
-    try {
-      // Chiama l'API Vercel per la pulizia dei post
-      const response = await fetch('/api/cleanupEmptyPosts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId: user.uid }), // Invia l'ID dell'utente
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setCleanupStatus(data.message); // Mostra il messaggio di successo dal backend
-      } else {
-        setCleanupStatus(`Errore: ${data.error || 'Qualcosa è andato storto.'}`); // Mostra l'errore
-      }
-    } catch (error) {
-      console.error('Errore durante la pulizia dei post:', error);
-      setCleanupStatus('Errore di rete o server. Controlla la console.');
-    } finally {
-      setIsCleaning(false); // Termina lo stato di caricamento
-    }
-  };
+  // Funzione handleCleanupPosts rimossa
   
   return (
     <div className="p-4 sm:p-6 pb-24">
@@ -163,7 +130,6 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
             </SettingsCard>
 
             <SettingsCard title="Gestione Dati" icon={Briefcase}>
-                {/* Modificato il layout per i 4 pulsanti */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <button onClick={onProjectsClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
                         <Settings size={16} /> <span className="hidden sm:inline">Progetti</span>
@@ -177,12 +143,9 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
                           <span className="ml-1.5 flex items-center gap-1 text-xs font-bold bg-yellow-400 dark:bg-yellow-500 text-yellow-900 px-1.5 py-0.5 rounded-full"><Star size={12}/> PRO</span>
                         )}
                     </button>
-                    {/* NUOVO PULSANTE PER LA PULIZIA */}
-                    <button onClick={handleCleanupPosts} disabled={isCleaning} title="Elimina i post senza metriche o con contenuto testuale vuoto" className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 text-sm transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
-                        <Trash size={16} /> {isCleaning ? 'Pulizia in corso...' : <span className="hidden sm:inline">Pulisci Post Vuoti</span>}
-                    </button>
+                    {/* PULSANTE PER LA PULIZIA RIMOSSO */}
                 </div>
-                {cleanupStatus && <p className="text-xs text-center mt-2 text-gray-500 dark:text-gray-400">{cleanupStatus}</p>}
+                {/* cleanupStatus rimosso */}
             </SettingsCard>
              <SettingsCard title="Notifiche" icon={BellRing}>
                 <div>
