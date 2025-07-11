@@ -58,7 +58,6 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
   };
 
   return (
-    // --- MODIFICA: Aggiunto padding corretto per la pagina ---
     <div className="p-4 sm:p-6 pb-24 space-y-6"> 
       <StatCard title="Analisi Strategica con AI" icon={BrainCircuit}>
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
@@ -91,13 +90,13 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
                 <div className="space-y-6 border-l-2 border-gray-200 dark:border-gray-700 pl-6 ml-3">
                     {data.analisiPerformance && (
                         <StatCard title="Performance dei Contenuti" icon={CheckCircle}>
-                        {/* --- MODIFICA: Aggiunte classi per il contrasto --- */}
-                        <ReactMarkdown className="prose dark:prose-invert max-w-none text-sm">{data.analisiPerformance}</ReactMarkdown>
+                        {/* --- MODIFICA: Aggiunte classi per lo stile e il contrasto del testo --- */}
+                        <ReactMarkdown className="prose prose-sm max-w-none dark:prose-invert">{data.analisiPerformance}</ReactMarkdown>
                         </StatCard>
                     )}
                     {data.analisiGanci && (
                         <StatCard title="Efficacia dei Ganci" icon={AlertTriangle}>
-                        <ReactMarkdown className="prose dark:prose-invert max-w-none text-sm">{data.analisiGanci}</ReactMarkdown>
+                        <ReactMarkdown className="prose prose-sm max-w-none dark:prose-invert">{data.analisiGanci}</ReactMarkdown>
                         </StatCard>
                     )}
                     {Array.isArray(data.consigliAzionabili) && (
