@@ -16,6 +16,7 @@
     "@icons-pack/react-simple-icons": "^13.4.0",
     "date-fns": "^3.6.0",
     "firebase": "^10.12.2",
+    "firebase-admin": "^11.11.0",
     "lucide-react": "^0.395.0",
     "papaparse": "^5.5.3",
     "react": "^18.2.0",
