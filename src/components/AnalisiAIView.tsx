@@ -9,9 +9,9 @@ interface AnalisiAIViewProps {
 }
 
 interface AIReport {
-  puntiDiForza: string;
-  areeDiMiglioramento: string;
-  consigliPratici: string[];
+  analisiPerformance: string;
+  analisiGanci: string;
+  consigliAzionabili: string[];
 }
 
 export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
@@ -25,24 +25,19 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
     setReport(null);
 
     try {
-      // Filtriamo solo i post che hanno dati di performance
       const postsWithPerformance = posts.filter(p => p.performance);
-
       if (postsWithPerformance.length < 3) {
         throw new Error("Dati insufficienti. Sono necessari almeno 3 post con metriche di performance per un'analisi significativa.");
       }
       
-      // --- MODIFICA: Usiamo 'fetch' per chiamare il nostro endpoint Vercel ---
       const response = await fetch('/api/generateReport', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ posts: postsWithPerformance }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: 'Errore sconosciuto dal server' }));
         throw new Error(errorData.error || `Errore HTTP: ${response.status}`);
       }
 
@@ -58,10 +53,10 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="space-y-6">
       <StatCard title="Analisi Strategica con AI" icon={BrainCircuit}>
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-          L'intelligenza artificiale analizzerà le performance di tutti i tuoi contenuti per fornirti un report strategico con consigli pratici per ottimizzare il tuo piano editoriale.
+          L'intelligenza artificiale analizzerà le performance dei tuoi contenuti per fornirti un report strategico con consigli pratici per ottimizzare il tuo piano editoriale.
         </p>
         <button
           onClick={handleGenerateReport}
@@ -81,15 +76,16 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
 
       {report && (
         <div className="space-y-6 animate-fade-in">
-          <StatCard title="Punti di Forza" icon={CheckCircle}>
-            <ReactMarkdown className="prose dark:prose-invert max-w-none">{report.puntiDiForza}</ReactMarkdown>
+          <StatCard title="Analisi Performance" icon={CheckCircle}>
+            <ReactMarkdown className="prose dark:prose-invert max-w-none">{report.analisiPerformance}</ReactMarkdown>
           </StatCard>
-          <StatCard title="Aree di Miglioramento" icon={AlertTriangle}>
-            <ReactMarkdown className="prose dark:prose-invert max-w-none">{report.areeDiMiglioramento}</ReactMarkdown>
+          <StatCard title="Analisi dei Ganci" icon={AlertTriangle}>
+            <ReactMarkdown className="prose dark:prose-invert max-w-none">{report.analisiGanci}</ReactMarkdown>
           </StatCard>
           <StatCard title="Consigli Pratici" icon={List}>
             <ul className="space-y-2 list-disc pl-5">
-              {report.consigliPratici.map((consiglio, index) => (
+              {/* --- MODIFICA CHIAVE: Controllo di sicurezza prima di usare .map --- */}
+              {Array.isArray(report.consigliAzionabili) && report.consigliAzionabili.map((consiglio, index) => (
                 <li key={index} className="text-gray-700 dark:text-gray-300">{consiglio}</li>
               ))}
             </ul>
