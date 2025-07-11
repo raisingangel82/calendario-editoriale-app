@@ -6,16 +6,14 @@ const geminiApiKey = process.env.GEMINI_API_KEY;
 // Funzione helper per estrarre il gancio (prima frase) da un testo
 const getHook = (text: string = ''): string => {
   if (!text) return "Nessun testo fornito";
-  const sentences = text.match(/[^.!?]+[.!?]*/); // Trova la prima frase che termina con ., !, ?
-  return sentences ? sentences[0].trim() : text.substring(0, 120); // Altrimenti prende i primi 120 caratteri
+  const sentences = text.match(/[^.!?]+[.!?]*/);
+  return sentences ? sentences[0].trim() : text.substring(0, 120);
 };
 
 export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ) {
-  console.log('[LOG] Esecuzione della funzione generateReport avviata.');
-
   try {
     if (!geminiApiKey) {
       throw new Error("Configurazione del server incompleta: manca la chiave API.");
@@ -29,57 +27,44 @@ export default async function handler(
       return response.status(400).json({ error: 'La funzione richiede un elenco di post.' });
     }
     
-    // 1. Filtra solo i post con performance e calcola uno score di engagement
-    const postsConScore = posts
-      .filter((post: any) => post.performance)
-      .map((post: any) => {
-        const p = post.performance;
-        // Score che dà più peso a commenti e condivisioni
-        const score = (p.views || 0) + (p.likes || 0) * 5 + (p.comments || 0) * 10 + (p.shares || 0) * 15;
-        return { ...post, score };
-      });
-
-    // 2. Ordina i post in base allo score
-    postsConScore.sort((a: any, b: any) => b.score - a.score);
-
-    // 3. Aumenta il campione a 10 migliori e 10 peggiori
-    const topPosts = postsConScore.slice(0, 10);
-    const bottomPosts = postsConScore.slice(-10);
+    // Raggruppa i post per piattaforma
+    const postsByPlatform: { [key: string]: any[] } = {};
+    posts.filter((p: any) => p.performance).forEach((post: any) => {
+        const platform = post.piattaforma || 'Sconosciuta';
+        if (!postsByPlatform[platform]) {
+            postsByPlatform[platform] = [];
+        }
+        postsByPlatform[platform].push(post);
+    });
     
-    // 4. Estrai i dati chiave, incluso il "gancio", per l'analisi
-    const samplePosts = [...new Set([...topPosts, ...bottomPosts])].map((p: any) => ({
-      titolo: p.titolo,
-      tipoContenuto: p.tipoContenuto,
-      gancio: getHook(p.testo), // Estraiamo il gancio per l'analisi
-      performance: p.performance,
-      score: p.score
-    }));
-
-    console.log(`[LOG] Inviando un campione di ${samplePosts.length} post all'AI.`);
-
     const genAI = new GoogleGenerativeAI(geminiApiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
     
-    // 5. Prompt potenziato per un'analisi più profonda
+    // MODIFICA CHIAVE: Prompt per analisi per singola piattaforma
     const prompt = `
-      Sei un social media strategist e copywriter di élite, specializzato in content marketing per autori. Il tuo tono è analitico, preciso e orientato a fornire consigli pratici basati su dati concreti.
+      Sei un social media strategist di alto livello e un copywriter esperto. La tua specialità è analizzare dati di performance per autori e fornire strategie editoriali estremamente specifiche e attuabili.
 
-      Analizza il seguente campione di post (i migliori e i peggiori, ordinati per uno 'score' di performance) per identificare pattern specifici e generare un report di alto valore. Per ogni post, ti fornisco titolo, tipo, performance e il "gancio" (la prima frase del testo).
+      Analizza i seguenti dati, che sono raggruppati per piattaforma social. Per ogni piattaforma, esegui un'analisi dettagliata e fornisci consigli mirati.
 
-      DATI DEL CAMPIONE DI POST:
-      ${JSON.stringify(samplePosts, null, 2)}
+      DATI DEI POST:
+      ${JSON.stringify(postsByPlatform, null, 2)}
 
       RICHIESTA:
-      Basandoti su questi dati, genera una risposta in formato JSON con le seguenti chiavi:
-      1.  "analisiPerformance": (stringa) Un paragrafo che analizza la performance generale, confrontando esplicitamente i tipi di contenuto (es. "I Reel hanno generato in media il 150% di visualizzazioni in più delle immagini statiche, ma i Caroselli hanno un engagement (like+commenti) superiore del 30%").
-      2.  "analisiGanci": (stringa) Un paragrafo focalizzato sull'efficacia dei ganci. Identifica lo stile dei ganci dei post migliori (es. "I ganci che funzionano meglio iniziano con una domanda diretta o una statistica scioccante") e confrontali con quelli dei post peggiori (es. "I ganci dei post con performance basse sono spesso troppo generici o descrittivi"). Cita un esempio di gancio efficace dai dati forniti.
-      3.  "consigliAzionabili": (array di stringhe) Una lista di 3-4 consigli estremamente specifici e immediatamente applicabili. Ogni consiglio deve essere legato a un'osservazione fatta nelle analisi precedenti. Esempi: ["Per il prossimo Reel, usa un gancio che ponga una domanda diretta nei primi 3 secondi, simile a '...', perché questo stile ha dimostrato di aumentare i commenti.", "Trasforma il tuo prossimo post testuale in un Carosello di 3-5 slide su Instagram per aumentare i 'salvataggi' e i 'mi piace'."]
+      Genera una risposta in formato JSON. La risposta deve essere un oggetto dove ogni chiave è il nome di una piattaforma (es. "Instagram", "YouTube").
+      Per ogni piattaforma, il valore deve essere un oggetto con le seguenti tre chiavi:
+      
+      1.  "analisiPerformance": (stringa) Un paragrafo conciso che identifica il tipo di contenuto (es. Reel, Carosello, Foto) che ha performato meglio e peggio su QUESTA specifica piattaforma, menzionando metriche chiave (es. "Su Instagram, i Reel mostrano una copertura media superiore del 200% rispetto alle foto singole, ma i Caroselli generano il 50% in più di salvataggi.").
+
+      2.  "analisiGanci": (stringa) Un'analisi specifica dei "ganci" (prima frase del testo) per QUESTA piattaforma. Identifica lo stile dei ganci che ha funzionato meglio (es. "Su Facebook, i ganci che iniziano con una domanda diretta all'utente generano più commenti") e cita un esempio di gancio efficace dai dati forniti per quella piattaforma.
+
+      3.  "consigliAzionabili": (array di stringhe) Una lista di 2-3 consigli pratici e specifici per migliorare le performance su QUESTA piattaforma, basati sulle analisi precedenti. Esempi: ["Per YouTube, crea titoli più brevi e incisivi come '...', che ha ottenuto un alto click-through rate.", "Per Instagram, riutilizza i tuoi post testuali di successo trasformandoli in Caroselli informativi di 3-5 slide."].
+
+      Fornisci una risposta solo per le piattaforme presenti nei dati. La risposta finale deve essere un oggetto JSON valido.
     `;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
     
-    console.log("[LOG] Risposta grezza dall'AI:", responseText);
     const startIndex = responseText.indexOf('{');
     const endIndex = responseText.lastIndexOf('}');
     if (startIndex === -1 || endIndex === -1) throw new Error("La risposta dell'AI non conteneva un oggetto JSON valido.");

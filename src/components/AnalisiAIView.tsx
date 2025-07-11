@@ -3,15 +3,20 @@ import ReactMarkdown from 'react-markdown';
 import { Wand, CheckCircle, AlertTriangle, List, BrainCircuit } from 'lucide-react';
 import { StatCard } from './StatCard';
 import type { Post } from '../types';
+import { PlatformIcon } from './PlatformIcon';
 
 interface AnalisiAIViewProps {
   posts: Post[];
 }
 
-interface AIReport {
+interface AIReportData {
   analisiPerformance: string;
   analisiGanci: string;
   consigliAzionabili: string[];
+}
+
+interface AIReport {
+    [platformName: string]: AIReportData;
 }
 
 export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
@@ -25,7 +30,7 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
     setReport(null);
 
     try {
-      const postsWithPerformance = posts.filter(p => p.performance);
+      const postsWithPerformance = posts.filter(p => p.performance && p.piattaforma);
       if (postsWithPerformance.length < 3) {
         throw new Error("Dati insufficienti. Sono necessari almeno 3 post con metriche di performance per un'analisi significativa.");
       }
@@ -53,10 +58,11 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
   };
 
   return (
-    <div className="space-y-6">
+    // --- MODIFICA: Aggiunto padding per header e footer ---
+    <div className="space-y-6 pt-4 pb-24"> 
       <StatCard title="Analisi Strategica con AI" icon={BrainCircuit}>
         <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-          L'intelligenza artificiale analizzerà le performance dei tuoi contenuti per fornirti un report strategico con consigli pratici per ottimizzare il tuo piano editoriale.
+          L'intelligenza artificiale analizzerà le performance dei tuoi contenuti, piattaforma per piattaforma, per fornirti un report strategico con consigli pratici.
         </p>
         <button
           onClick={handleGenerateReport}
@@ -74,22 +80,38 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
         </StatCard>
       )}
 
+      {/* --- MODIFICA: Logica per visualizzare il report per piattaforma --- */}
       {report && (
-        <div className="space-y-6 animate-fade-in">
-          <StatCard title="Analisi Performance" icon={CheckCircle}>
-            <ReactMarkdown className="prose dark:prose-invert max-w-none">{report.analisiPerformance}</ReactMarkdown>
-          </StatCard>
-          <StatCard title="Analisi dei Ganci" icon={AlertTriangle}>
-            <ReactMarkdown className="prose dark:prose-invert max-w-none">{report.analisiGanci}</ReactMarkdown>
-          </StatCard>
-          <StatCard title="Consigli Pratici" icon={List}>
-            <ul className="space-y-2 list-disc pl-5">
-              {/* --- MODIFICA CHIAVE: Controllo di sicurezza prima di usare .map --- */}
-              {Array.isArray(report.consigliAzionabili) && report.consigliAzionabili.map((consiglio, index) => (
-                <li key={index} className="text-gray-700 dark:text-gray-300">{consiglio}</li>
-              ))}
-            </ul>
-          </StatCard>
+        <div className="space-y-8 animate-fade-in">
+          {Object.entries(report).map(([platform, data]) => (
+            <div key={platform}>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-3">
+                    <PlatformIcon platform={platform} className="w-6 h-6" />
+                    Analisi per {platform}
+                </h2>
+                <div className="space-y-6 border-l-2 border-gray-200 dark:border-gray-700 pl-6 ml-3">
+                    {data.analisiPerformance && (
+                        <StatCard title="Performance dei Contenuti" icon={CheckCircle}>
+                        <ReactMarkdown className="prose dark:prose-invert max-w-none text-sm">{data.analisiPerformance}</ReactMarkdown>
+                        </StatCard>
+                    )}
+                    {data.analisiGanci && (
+                        <StatCard title="Efficacia dei Ganci" icon={AlertTriangle}>
+                        <ReactMarkdown className="prose dark:prose-invert max-w-none text-sm">{data.analisiGanci}</ReactMarkdown>
+                        </StatCard>
+                    )}
+                    {Array.isArray(data.consigliAzionabili) && (
+                        <StatCard title="Consigli Pratici" icon={List}>
+                        <ul className="space-y-2 list-disc pl-5">
+                            {data.consigliAzionabili.map((consiglio, index) => (
+                            <li key={index} className="text-gray-700 dark:text-gray-300 text-sm">{consiglio}</li>
+                            ))}
+                        </ul>
+                        </StatCard>
+                    )}
+                </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
