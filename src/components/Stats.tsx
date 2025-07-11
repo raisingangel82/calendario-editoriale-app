@@ -1,3 +1,4 @@
+//
 import React, { useMemo, useState } from 'react';
 import { BarChart2 as BarIcon, PieChart, CheckCircle, Clock, Award, Eye, Heart, MessageSquare } from 'lucide-react';
 import type { Post, Progetto, Categoria } from '../types';
