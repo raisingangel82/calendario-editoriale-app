@@ -90,22 +90,26 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
                 <div className="space-y-6 border-l-2 border-gray-200 dark:border-gray-700 pl-6 ml-3">
                     {data.analisiPerformance && (
                         <StatCard title="Performance dei Contenuti" icon={CheckCircle}>
-                        {/* --- MODIFICA: Aggiunte classi per lo stile e il contrasto del testo --- */}
-                        <ReactMarkdown className="prose prose-sm max-w-none dark:prose-invert">{data.analisiPerformance}</ReactMarkdown>
+                          {/* --- MODIFICA: Applico stili di testo diretti --- */}
+                          <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+                            <ReactMarkdown>{data.analisiPerformance}</ReactMarkdown>
+                          </div>
                         </StatCard>
                     )}
                     {data.analisiGanci && (
                         <StatCard title="Efficacia dei Ganci" icon={AlertTriangle}>
-                        <ReactMarkdown className="prose prose-sm max-w-none dark:prose-invert">{data.analisiGanci}</ReactMarkdown>
+                          <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+                            <ReactMarkdown>{data.analisiGanci}</ReactMarkdown>
+                          </div>
                         </StatCard>
                     )}
                     {Array.isArray(data.consigliAzionabili) && (
                         <StatCard title="Consigli Pratici" icon={List}>
-                        <ul className="space-y-2 list-disc pl-5">
-                            {data.consigliAzionabili.map((consiglio, index) => (
-                              <li key={index} className="text-gray-700 dark:text-gray-300 text-sm">{consiglio}</li>
-                            ))}
-                        </ul>
+                          <ul className="space-y-2 list-disc pl-5">
+                              {data.consigliAzionabili.map((consiglio, index) => (
+                                <li key={index} className="text-sm text-gray-700 dark:text-gray-300">{consiglio}</li>
+                              ))}
+                          </ul>
                         </StatCard>
                     )}
                 </div>
