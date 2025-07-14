@@ -1,10 +1,10 @@
 import { db } from '../firebase';
 import { doc, updateDoc, setDoc, addDoc, collection, serverTimestamp, Timestamp, type DocumentData } from 'firebase/firestore';
 import { isSameDay, format, parse, startOfDay } from 'date-fns';
-import { enUS } from 'date-fns/locale';
+import { it, enUS } from 'date-fns/locale'; // Aggiunto 'it' per il parsing di TikTok
 import type { Post } from '../types';
 
-// Mappatura definitiva
+// Mappatura definitiva (invariata)
 const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'youtube': { date: 'Ora pubblicazione video', views: 'Visualizzazioni', title: 'Titolo video', description: 'Titolo video' },
     'instagram': { date: 'Orario di pubblicazione', views: 'Copertura', likes: 'Mi piace', comments: 'Commenti', description: 'Descrizione', postType: 'Tipo di post' },
@@ -18,30 +18,54 @@ const getValueFromRecord = (record: DocumentData, key: string | undefined): stri
     return recordKey ? record[recordKey] : null;
 };
 
+/**
+ * Funzione di parsing delle date potenziata e più robusta.
+ * Tenta di interpretare la data usando una lista di formati comuni.
+ */
 const parseDate = (dateStr: string | null, platform: string): Date | null => {
     if (!dateStr) return null;
+
+    // Gestione speciale per TikTok "giorno mese" in italiano
+    if (platform === 'tiktok' && /^\d{1,2} \w+$/.test(dateStr)) {
+        try {
+            const parsed = parse(dateStr, 'd MMMM', new Date(), { locale: it });
+            if (!isNaN(parsed.getTime())) return parsed;
+        } catch (e) {
+            // Ignora e continua con gli altri formati
+        }
+    }
+    
+    // Lista di formati da provare in sequenza
+    const formatsToTry = [
+        'yyyy-MM-dd',      // Formato ISO, il più affidabile
+        'dd/MM/yyyy',      // Formato europeo comune
+        'MM/dd/yyyy',      // Formato americano comune
+        'MMM d, yyyy',     // Formato YouTube (es. Jul 14, 2025)
+        'yyyy/MM/dd',      // Altra variante comune
+        'MM-dd-yyyy',
+        'dd-MM-yyyy'
+    ];
+
+    for (const format of formatsToTry) {
+        try {
+            const parsed = parse(dateStr, format, new Date(), { locale: enUS });
+            if (!isNaN(parsed.getTime())) {
+                return parsed; // Ritorna la prima corrispondenza valida
+            }
+        } catch (e) {
+            // Continua al prossimo formato
+        }
+    }
+
+    // Fallback finale se nessun formato ha funzionato
     try {
-        if (platform === 'youtube') return parse(dateStr, 'MMM d, yyyy', new Date(), { locale: enUS });
-        if (platform === 'tiktok') {
-            const monthMap: { [key: string]: number } = { 'gennaio': 0, 'febbraio': 1, 'marzo': 2, 'aprile': 3, 'maggio': 4, 'giugno': 5, 'luglio': 6, 'agosto': 7, 'settembre': 8, 'ottobre': 9, 'novembre': 10, 'dicembre': 11 };
-            const parts = dateStr.split(' ');
-            if (parts.length === 2) {
-                const day = parseInt(parts[0]);
-                const month = monthMap[parts[1]?.toLowerCase()];
-                const year = new Date().getFullYear(); 
-                if (!isNaN(day) && month !== undefined) return new Date(year, month, day);
-            }
-        }
-        if (platform === 'facebook' || platform === 'instagram') {
-            if (dateStr.includes('/')) {
-                 try { return parse(dateStr, 'MM/dd/yyyy', new Date()); } catch (e) {}
-                 try { return parse(dateStr, 'dd/MM/yyyy', new Date()); } catch (e) {}
-            }
-        }
         const date = new Date(dateStr);
         if (!isNaN(date.getTime())) return date;
-    } catch (e) { return null; }
-    return null;
+    } catch (e) {
+        return null;
+    }
+
+    return null; // Ritorna null se tutti i tentativi falliscono
 };
 
 export const processAndMatchAnalytics = async (
@@ -57,52 +81,65 @@ export const processAndMatchAnalytics = async (
 
     let updatedPostsCount = 0;
     let createdPostsCount = 0;
-    let relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
+    const relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
     const writePromises: Promise<void>[] = [];
-    let tiktokDebugCount = 0;
 
-    for (const record of parsedData) {
+    console.log(`\n--- 🚀 INIZIO PROCESSO PER LA PIATTAFORMA: ${platformName.toUpperCase()} ---`);
+    console.log(`Trovati ${parsedData.length} record nel CSV e ${relevantDbPosts.length} post esistenti nel DB.`);
+
+    for (const [index, record] of parsedData.entries()) {
         const rawDate = getValueFromRecord(record, mapper.date);
         const csvDate = parseDate(rawDate, platformName);
 
-        if (platformName === 'tiktok' && tiktokDebugCount < 5) {
-            console.log(`--- TIKTOK DEBUG (Riga CSV ${tiktokDebugCount + 1}) ---`);
-            console.log(`Stringa Grezza dal File: "${rawDate}"`);
-            console.log(`Risultato del Parsing:`, csvDate); // Logga l'oggetto Date o null
+        // --- BLOCCO DI DEBUG UNIVERSALE ---
+        console.log(`\n[${platformName.toUpperCase()} - Riga CSV ${index + 1}]`);
+        console.log(`  - Data Grezza: "${rawDate}"`);
+        console.log(`  - Data Parsata: ${csvDate ? csvDate.toISOString() : "❌ PARSING FALLITO"}`);
+
+        if (!csvDate) {
+            console.log("  - Esito: Riga scartata per data non valida.");
+            continue;
         }
-        
-        if (!csvDate) continue;
 
         const viewsValue = getValueFromRecord(record, mapper.views);
-        if (!viewsValue) continue; 
+        if (!viewsValue) {
+            console.log("  - Esito: Riga scartata per visualizzazioni non valide.");
+            continue;
+        }
         
         const matchingPostIndex = relevantDbPosts.findIndex(p => {
             const firestoreDate = p.data ? (p.data as Timestamp).toDate() : null;
-            if (!firestoreDate) return false;
-
-            const match = isSameDay(startOfDay(firestoreDate), startOfDay(csvDate));
-
-            if (platformName === 'tiktok' && tiktokDebugCount < 5 && relevantDbPosts.indexOf(p) < 3) {
-                 console.log(`-> Tento match con post del: ${firestoreDate.toISOString()}`);
-                 console.log(`-> Esito confronto: ${match}`);
-            }
-            return match;
+            return firestoreDate && isSameDay(startOfDay(firestoreDate), startOfDay(csvDate));
         });
 
-        if(platformName === 'tiktok') tiktokDebugCount++;
-        
-        const performanceData = { /* ... */ }; // (omesso per brevità)
+        const performanceData = { /* ... (i tuoi dati sulle performance) ... */ };
 
         if (matchingPostIndex !== -1) {
+            const matchedPost = relevantDbPosts[matchingPostIndex];
+            console.log(`  - Esito: ✅ MATCH TROVATO con post del DB del ${matchedPost.data.toDate().toISOString()}`);
             updatedPostsCount++;
-            // ... (logica di aggiornamento omessa per brevità)
+            
+            // LOGICA DI AGGIORNAMENTO (DA COMPLETARE CON I TUOI DATI)
+            // const postRef = doc(db, 'posts', matchedPost.id); // Assumendo che la collezione sia 'posts'
+            // writePromises.push(updateDoc(postRef, { performance: performanceData }));
+
         } else if (importStrategy === 'create_new') {
+            console.log("  - Esito: ✍️ NESSUN MATCH. Creazione nuovo post.");
             createdPostsCount++;
-            // ... (logica di creazione omessa per brevità)
+
+            // LOGICA DI CREAZIONE (DA COMPLETARE CON I TUOI DATI)
+            // const newPostData = { /* ... dati del nuovo post ... */, userId: userId };
+            // writePromises.push(addDoc(collection(db, 'posts'), newPostData));
+
+        } else {
+            console.log("  - Esito: 😴 NESSUN MATCH. Strategia 'update_only', nessuna azione.");
         }
     }
-
-    await Promise.all(writePromises); // Disabilitiamo la scrittura per il test
-    console.log(`--- ANALISI DI DEBUG COMPLETATA. Match teorici trovati: ${updatedPostsCount} ---`);
+    
+    // Esegue tutte le operazioni di scrittura (aggiornamenti e creazioni) in parallelo.
+    // Assicurati di popolare l'array `writePromises` con le tue operazioni `updateDoc` o `addDoc`.
+    // await Promise.all(writePromises); 
+    
+    console.log(`\n--- ✨ ANALISI COMPLETATA PER ${platformName.toUpperCase()}. Match teorici trovati: ${updatedPostsCount}, Nuovi post: ${createdPostsCount} ---`);
     return { updated: updatedPostsCount, created: createdPostsCount };
 };
