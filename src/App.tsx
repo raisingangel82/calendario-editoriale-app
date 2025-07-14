@@ -77,16 +77,12 @@ function MainLayout() {
   const [actionConfig, setActionConfig] = useState({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
   const [statsActiveView, setStatsActiveView] = useState<'produzione' | 'performance' | 'analisiAI'>('produzione');
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
-  
-  // MODIFICA 1: Aggiunta dello stato "trigger"
-  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
   );
 
-  // MODIFICA 2: Aggiunta di 'refetchTrigger' all'array di dipendenze
   useEffect(() => {
     if (!user) {
       setPosts([]);
@@ -99,7 +95,6 @@ function MainLayout() {
       return;
     }
     
-    console.log("Effetto di caricamento dati eseguito (trigger:", refetchTrigger, ")");
     setLoadingData(true);
 
     const userDocRef = doc(db, 'users', user.uid);
@@ -166,7 +161,7 @@ function MainLayout() {
         unsubUser();
         unsubUserPrefs();
     };
-  }, [user, refetchTrigger]);
+  }, [user]);
 
   useEffect(() => {
     if (location.pathname !== '/stats') {
@@ -317,17 +312,45 @@ function MainLayout() {
   const handleDeletePlatform = async (id: string) => {
     await deleteDoc(doc(db, 'platforms', id));
   };
-  
-  // MODIFICA 3: Aggiornamento del trigger al completamento dell'importazione
-  const handleAnalyticsImport = (parsedData: any[], platformName: string, strategy: 'update_only' | 'create_new'): Promise<{updated: number, created: number} | void> => {
+
+  const handleAnalyticsImport = (parsedData: any[], platformName: string, strategy: 'update_only' | 'create_new') => {
     if (!user) {
         console.error("Utente non autenticato. Impossibile importare.");
-        return Promise.resolve({updated: 0, created: 0});
+        return Promise.resolve();
     }
-    return processAndMatchAnalytics(parsedData, platformName, posts, user.uid, strategy)
-      .then(() => {
-          console.log("Importazione completata, forzo il ricaricamento dei dati dell'app.");
-          setRefetchTrigger(c => c + 1);
+    
+    processAndMatchAnalytics(parsedData, platformName, posts, user.uid, strategy)
+      .then(result => {
+          if (!result) return;
+
+          const { updated, updatedPostsData } = result;
+
+          if (updated > 0 && updatedPostsData.size > 0) {
+              console.log("Aggiornamento chirurgico dello stato locale...");
+              
+              setPosts(currentPosts => 
+                  currentPosts.map(post => {
+                      if (updatedPostsData.has(post.id)) {
+                          const newPerformanceData = updatedPostsData.get(post.id);
+                          return { 
+                              ...post, 
+                              performance: {
+                                  ...post.performance,
+                                  ...newPerformanceData
+                              }
+                          };
+                      }
+                      return post;
+                  })
+              );
+              alert(`${updated} post aggiornati con successo!`);
+          } else {
+              alert("Nessun post corrispondente trovato da aggiornare.");
+          }
+      })
+      .catch(error => {
+          console.error("Errore durante il processo di importazione:", error);
+          alert("Si è verificato un errore durante l'importazione.");
       });
   };
   

@@ -28,9 +28,7 @@ const parseDate = (dateStr: string | null, platform: string): Date | null => {
         } catch (e) {}
     }
     
-    const formatsToTry = [
-        'yyyy-MM-dd', 'dd/MM/yyyy', 'MM/dd/yyyy', 'MMM d, yyyy', 'yyyy/MM/dd', 'MM-dd-yyyy', 'dd-MM-yyyy'
-    ];
+    const formatsToTry = [ 'yyyy-MM-dd', 'dd/MM/yyyy', 'MM/dd/yyyy', 'MMM d, yyyy', 'yyyy/MM/dd', 'MM-dd-yyyy', 'dd-MM-yyyy' ];
 
     for (const format of formatsToTry) {
         try {
@@ -53,16 +51,17 @@ export const processAndMatchAnalytics = async (
     existingPosts: Post[],
     userId: string,
     importStrategy: 'update_only' | 'create_new'
-): Promise<{ updated: number, created: number }> => {
+): Promise<{ updated: number, created: number, updatedPostsData: Map<string, any> }> => {
     const platformName = platform.toLowerCase();
     const mapper = platformCsvMappers[platformName];
-    if (!mapper) return { updated: 0, created: 0 };
+    if (!mapper) return { updated: 0, created: 0, updatedPostsData: new Map() };
 
     let updatedPostsCount = 0;
     let createdPostsCount = 0;
     const relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
     const writePromises: Promise<void>[] = [];
     const writeOperationsInfo: {id: string, data: any}[] = [];
+    const updatedPostsData = new Map<string, any>();
 
     console.log(`\n--- 🚀 INIZIO PROCESSO PER LA PIATTAFORMA: ${platformName.toUpperCase()} ---`);
 
@@ -70,14 +69,7 @@ export const processAndMatchAnalytics = async (
         const rawDate = getValueFromRecord(record, mapper.date);
         const csvDate = parseDate(rawDate, platformName);
 
-        console.log(`\n[${platformName.toUpperCase()} - Riga CSV ${index + 1}]`);
-        console.log(`  - Data Grezza: "${rawDate}"`);
-        console.log(`  - Data Parsata: ${csvDate ? csvDate.toISOString() : "❌ PARSING FALLITO"}`);
-
-        if (!csvDate) {
-            console.log("  - Esito: Riga scartata per data non valida.");
-            continue;
-        }
+        if (!csvDate) continue;
         
         const matchingPostIndex = relevantDbPosts.findIndex(p => {
             const firestoreDate = p.data ? (p.data as Timestamp).toDate() : null;
@@ -86,11 +78,7 @@ export const processAndMatchAnalytics = async (
 
         if (matchingPostIndex !== -1) {
             const matchedPost = relevantDbPosts[matchingPostIndex];
-            console.log(`  - Esito: ✅ MATCH TROVATO con post del DB del ${matchedPost.data.toDate().toISOString()}`);
             updatedPostsCount++;
-            
-            // NUOVO LOG: Verifichiamo l'ID del documento
-            console.log(`  - Info: ID del documento da aggiornare: ${matchedPost.id}`);
 
             const postRef = doc(db, 'performanceMetrics', matchedPost.id);
             const updateData: { [key: string]: any } = {};
@@ -103,43 +91,25 @@ export const processAndMatchAnalytics = async (
 
             const views = cleanAndConvertToNumber(getValueFromRecord(record, mapper.views));
             if (views !== null) updateData.views = views;
-            // Aggiungi qui altri campi se necessario...
+            const likes = cleanAndConvertToNumber(getValueFromRecord(record, mapper.likes));
+            if (likes !== null) updateData.likes = likes;
+            const comments = cleanAndConvertToNumber(getValueFromRecord(record, mapper.comments));
+            if (comments !== null) updateData.comments = comments;
+            const shares = cleanAndConvertToNumber(getValueFromRecord(record, mapper.shares));
+            if (shares !== null) updateData.shares = shares;
 
             if (Object.keys(updateData).length > 0) {
                  writePromises.push(updateDoc(postRef, updateData));
-                 writeOperationsInfo.push({ id: matchedPost.id, data: updateData }); // Salviamo le info per il log finale
-                 console.log('  - Azione: Preparato aggiornamento per:', updateData);
-            } else {
-                 console.log('  - Azione: Nessun dato valido da aggiornare trovato nel CSV.');
+                 writeOperationsInfo.push({ id: matchedPost.id, data: updateData });
+                 updatedPostsData.set(matchedPost.id, updateData);
             }
-        } else {
-             // Logica per 'nessun match' (invariata)
-             console.log("  - Esito: 😴 NESSUN MATCH. Strategia 'update_only', nessuna azione.");
         }
     }
     
-    // NUOVA LOGICA DI SCRITTURA CON REPORT DETTAGLIATO
     if (writePromises.length > 0) {
-        console.log(`\n🔄 In attesa di completare ${writePromises.length} operazioni di scrittura...`);
-        
-        const results = await Promise.allSettled(writePromises);
-        
-        console.log('\n--- 📊 REPORT FINALE OPERAZIONI DI SCRITTURA ---');
-        results.forEach((result, index) => {
-            const opInfo = writeOperationsInfo[index];
-            if (result.status === 'fulfilled') {
-                console.log(`  - ✅ SUCCESSO: Aggiornamento per doc ID ${opInfo.id} completato.`);
-            } else {
-                console.error(`  - ❌ FALLITO: Aggiornamento per doc ID ${opInfo.id} non riuscito.`);
-                console.error(`    - Dati: ${JSON.stringify(opInfo.data)}`);
-                console.error(`    - Motivo Errore:`, result.reason); // STAMPA L'ERRORE ESATTO
-            }
-        });
-
-    } else {
-        console.log('\nNessuna operazione di scrittura da eseguire.');
+        await Promise.allSettled(writePromises);
     }
     
     console.log(`\n--- ✨ ANALISI COMPLETATA ---`);
-    return { updated: updatedPostsCount, created: createdPostsCount };
+    return { updated: updatedPostsCount, created: createdPostsCount, updatedPostsData };
 };
