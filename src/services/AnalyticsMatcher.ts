@@ -92,7 +92,7 @@ export const processAndMatchAnalytics = async (
             // NUOVO LOG: Verifichiamo l'ID del documento
             console.log(`  - Info: ID del documento da aggiornare: ${matchedPost.id}`);
 
-            const postRef = doc(db, 'contenuti', matchedPost.id);
+            const postRef = doc(db, 'performanceMetrics', matchedPost.id);
             const updateData: { [key: string]: any } = {};
             const cleanAndConvertToNumber = (value: string | null): number | null => {
                 if (!value) return null;
