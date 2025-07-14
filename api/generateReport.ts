@@ -7,8 +7,11 @@ const geminiApiKey = process.env.GEMINI_API_KEY;
 const getHook = (text: string = ''): string => {
   if (!text) return "Nessun testo fornito";
   const sentences = text.match(/[^.!?]+[.!?]*/);
-  return sentences ? sentences[0].trim() : text.substring(0, 120);
+  return sentences ? sentences[0].trim() : text.substring(0, 150);
 };
+
+// Funzione helper per formattare i numeri
+const formatNumber = (num: number = 0) => new Intl.NumberFormat('it-IT').format(num);
 
 export default async function handler(
   request: VercelRequest,
@@ -26,48 +29,62 @@ export default async function handler(
     if (!posts || posts.length === 0) {
       return response.status(400).json({ error: 'La funzione richiede un elenco di post.' });
     }
-    
-    // Raggruppa i post per piattaforma
+
+    // --- NUOVA LOGICA DI PRE-ANALISI DEI DATI ---
+
     const postsByPlatform: { [key: string]: any[] } = {};
     posts.filter((p: any) => p.performance).forEach((post: any) => {
         const platform = post.piattaforma || 'Sconosciuta';
-        if (!postsByPlatform[platform]) {
-            postsByPlatform[platform] = [];
-        }
-        postsByPlatform[platform].push(post);
+        if (!postsByPlatform[platform]) postsByPlatform[platform] = [];
+        
+        // Semplifichiamo l'oggetto post per l'AI
+        postsByPlatform[platform].push({
+            titolo: post.titolo,
+            tipoContenuto: post.tipoContenuto,
+            gancio: getHook(post.descrizione), // Usiamo la funzione getHook!
+            views: post.performance.views || 0,
+            likes: post.performance.likes || 0,
+            comments: post.performance.comments || 0,
+            shares: post.performance.shares || 0
+        });
     });
-    
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
-    
-    // MODIFICA CHIAVE: Prompt per analisi per singola piattaforma
+
+    // --- NUOVO PROMPT IPER-STRUTTURATO ---
+
     const prompt = `
-      Sei un social media strategist di alto livello e un copywriter esperto. La tua specialità è analizzare dati di performance per autori e fornire strategie editoriali estremamente specifiche e attuabili.
+      Sei un data analyst e social media strategist di fama mondiale. Il tuo compito è trasformare dati grezzi in insight strategici.
+      Analizza i dati che ti fornisco, raggruppati per piattaforma. Per ogni piattaforma, segui ESATTAMENTE la struttura richiesta.
+      Sii specifico, numerico e cita sempre i titoli dei post quando richiesto.
 
-      Analizza i seguenti dati, che sono raggruppati per piattaforma social. Per ogni piattaforma, esegui un'analisi dettagliata e fornisci consigli mirati.
-
-      DATI DEI POST:
+      DATI DA ANALIZZARE:
       ${JSON.stringify(postsByPlatform, null, 2)}
 
-      RICHIESTA:
-      Genera una risposta in formato JSON. La risposta deve essere un oggetto dove ogni chiave è il nome di una piattaforma (es. "Instagram", "YouTube").
-      Per ogni piattaforma, il valore deve essere un oggetto con le seguenti tre chiavi:
+      RICHIESTA DI OUTPUT:
+      Genera una risposta in formato JSON. L'oggetto principale deve avere come chiavi i nomi delle piattaforme.
+      Per ogni piattaforma, il valore deve essere un oggetto con tre chiavi obbligatorie:
+
+      1. "analisiPerformance": (stringa) Un paragrafo di analisi. Inizia identificando il post con il maggior numero di visualizzazioni in assoluto su questa piattaforma, CITANDO IL SUO TITOLO e il NUMERO ESATTO di views. Poi, confronta la performance media dei diversi formati (es. "Reel", "Carosello").
       
-      1.  "analisiPerformance": (stringa) Un paragrafo conciso che identifica il tipo di contenuto (es. Reel, Carosello, Foto) che ha performato meglio e peggio su QUESTA specifica piattaforma, menzionando metriche chiave (es. "Su Instagram, i Reel mostrano una copertura media superiore del 200% rispetto alle foto singole, ma i Caroselli generano il 50% in più di salvataggi.").
+      2. "analisiGanci": (stringa) Analizza il gancio del post più performante in termini di views. CITA IL GANCIO ESATTO e spiega perché, secondo te, ha funzionato. Confrontalo con il gancio di un post con basse performance.
 
-      2.  "analisiGanci": (stringa) Un'analisi specifica dei "ganci" (prima frase del testo) per QUESTA piattaforma. Identifica lo stile dei ganci che ha funzionato meglio (es. "Su Facebook, i ganci che iniziano con una domanda diretta all'utente generano più commenti") e cita un esempio di gancio efficace dai dati forniti per quella piattaforma.
+      3. "consigliAzionabili": (array di stringhe) Una lista di 2-3 consigli ULTRA-SPECIFICI basati sui dati. Non dare consigli generici come "usa buoni hashtag". Esempio: "Dato che il post '[Titolo del post con più views]' ha ottenuto ${formatNumber(1796)} views, crea un secondo video che approfondisce lo stesso argomento." o "Il formato 'Carosello' riceve in media il 40% di like in più rispetto ai Reel; trasforma il tuo prossimo post testuale in un carosello informativo."
 
-      3.  "consigliAzionabili": (array di stringhe) Una lista di 2-3 consigli pratici e specifici per migliorare le performance su QUESTA piattaforma, basati sulle analisi precedenti. Esempi: ["Per YouTube, crea titoli più brevi e incisivi come '...', che ha ottenuto un alto click-through rate.", "Per Instagram, riutilizza i tuoi post testuali di successo trasformandoli in Caroselli informativi di 3-5 slide."].
-
-      Fornisci una risposta solo per le piattaforme presenti nei dati. La risposta finale deve essere un oggetto JSON valido.
+      La risposta DEVE essere un oggetto JSON valido e completo.
     `;
+
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // Uso gemini-pro per analisi più accurate
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
     
+    // Pulizia robusta della risposta per estrarre solo il JSON
     const startIndex = responseText.indexOf('{');
     const endIndex = responseText.lastIndexOf('}');
-    if (startIndex === -1 || endIndex === -1) throw new Error("La risposta dell'AI non conteneva un oggetto JSON valido.");
+    if (startIndex === -1 || endIndex === -1) {
+      console.error("Risposta AI non valida:", responseText);
+      throw new Error("La risposta dell'AI non conteneva un oggetto JSON valido.");
+    }
     
     const jsonString = responseText.substring(startIndex, endIndex + 1);
     const parsedResponse = JSON.parse(jsonString);
