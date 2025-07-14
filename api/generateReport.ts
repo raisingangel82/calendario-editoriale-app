@@ -73,7 +73,7 @@ export default async function handler(
     `;
 
     const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" }); // Uso gemini-pro per analisi più accurate
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" }); // Uso gemini-pro per analisi più accurate
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
