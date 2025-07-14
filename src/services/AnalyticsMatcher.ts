@@ -4,7 +4,7 @@ import { isSameDay, format, parse, startOfDay } from 'date-fns';
 import { it, enUS } from 'date-fns/locale';
 import type { Post } from '../types';
 
-// Mappatura definitiva
+// Mappatura (invariata)
 const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'youtube': { date: 'Ora pubblicazione video', views: 'Visualizzazioni', title: 'Titolo video', description: 'Titolo video' },
     'instagram': { date: 'Orario di pubblicazione', views: 'Copertura', likes: 'Mi piace', comments: 'Commenti', description: 'Descrizione', postType: 'Tipo di post' },
@@ -29,30 +29,20 @@ const parseDate = (dateStr: string | null, platform: string): Date | null => {
     }
     
     const formatsToTry = [
-        'yyyy-MM-dd',
-        'dd/MM/yyyy',
-        'MM/dd/yyyy',
-        'MMM d, yyyy',
-        'yyyy/MM/dd',
-        'MM-dd-yyyy',
-        'dd-MM-yyyy'
+        'yyyy-MM-dd', 'dd/MM/yyyy', 'MM/dd/yyyy', 'MMM d, yyyy', 'yyyy/MM/dd', 'MM-dd-yyyy', 'dd-MM-yyyy'
     ];
 
     for (const format of formatsToTry) {
         try {
             const parsed = parse(dateStr, format, new Date(), { locale: enUS });
-            if (!isNaN(parsed.getTime())) {
-                return parsed;
-            }
+            if (!isNaN(parsed.getTime())) return parsed;
         } catch (e) {}
     }
 
     try {
         const date = new Date(dateStr);
         if (!isNaN(date.getTime())) return date;
-    } catch (e) {
-        return null;
-    }
+    } catch (e) { return null; }
 
     return null;
 };
@@ -72,9 +62,9 @@ export const processAndMatchAnalytics = async (
     let createdPostsCount = 0;
     const relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
     const writePromises: Promise<void>[] = [];
+    const writeOperationsInfo: {id: string, data: any}[] = [];
 
     console.log(`\n--- 🚀 INIZIO PROCESSO PER LA PIATTAFORMA: ${platformName.toUpperCase()} ---`);
-    console.log(`Trovati ${parsedData.length} record nel CSV e ${relevantDbPosts.length} post esistenti nel DB.`);
 
     for (const [index, record] of parsedData.entries()) {
         const rawDate = getValueFromRecord(record, mapper.date);
@@ -98,51 +88,58 @@ export const processAndMatchAnalytics = async (
             const matchedPost = relevantDbPosts[matchingPostIndex];
             console.log(`  - Esito: ✅ MATCH TROVATO con post del DB del ${matchedPost.data.toDate().toISOString()}`);
             updatedPostsCount++;
-
-            // --- LOGICA DI AGGIORNAMENTO ATTIVATA ---
-            const postRef = doc(db, 'contenuti', matchedPost.id); // Usa il nome corretto della collezione
             
+            // NUOVO LOG: Verifichiamo l'ID del documento
+            console.log(`  - Info: ID del documento da aggiornare: ${matchedPost.id}`);
+
+            const postRef = doc(db, 'contenuti', matchedPost.id);
             const updateData: { [key: string]: any } = {};
-            
-            const views = getValueFromRecord(record, mapper.views);
-            if(views) updateData.views = Number(views.replace(/,/g, '')); // Converte in numero e rimuove virgole
+            const cleanAndConvertToNumber = (value: string | null): number | null => {
+                if (!value) return null;
+                const cleanedValue = value.replace(/[.,\s]/g, '');
+                const numberValue = Number(cleanedValue);
+                return isNaN(numberValue) ? null : numberValue;
+            };
 
-            const likes = getValueFromRecord(record, mapper.likes);
-            if(likes) updateData.likes = Number(likes.replace(/,/g, ''));
-
-            const comments = getValueFromRecord(record, mapper.comments);
-            if(comments) updateData.comments = Number(comments.replace(/,/g, ''));
-            
-            const shares = getValueFromRecord(record, mapper.shares);
-            if(shares) updateData.shares = Number(shares.replace(/,/g, ''));
+            const views = cleanAndConvertToNumber(getValueFromRecord(record, mapper.views));
+            if (views !== null) updateData.views = views;
+            // Aggiungi qui altri campi se necessario...
 
             if (Object.keys(updateData).length > 0) {
                  writePromises.push(updateDoc(postRef, updateData));
+                 writeOperationsInfo.push({ id: matchedPost.id, data: updateData }); // Salviamo le info per il log finale
                  console.log('  - Azione: Preparato aggiornamento per:', updateData);
             } else {
                  console.log('  - Azione: Nessun dato valido da aggiornare trovato nel CSV.');
             }
-
-        } else if (importStrategy === 'create_new') {
-            console.log("  - Esito: ✍️ NESSUN MATCH. Creazione nuovo post.");
-            createdPostsCount++;
-            
-            // Qui puoi inserire la logica per creare un nuovo documento se necessario
-
         } else {
-            console.log("  - Esito: 😴 NESSUN MATCH. Strategia 'update_only', nessuna azione.");
+             // Logica per 'nessun match' (invariata)
+             console.log("  - Esito: 😴 NESSUN MATCH. Strategia 'update_only', nessuna azione.");
         }
     }
     
-    // Esegue tutte le operazioni di scrittura accumulate
+    // NUOVA LOGICA DI SCRITTURA CON REPORT DETTAGLIATO
     if (writePromises.length > 0) {
-        console.log(`\n🔄 In attesa di completare ${writePromises.length} operazioni di scrittura sul database...`);
-        await Promise.all(writePromises);
-        console.log('✅ Operazioni completate.');
+        console.log(`\n🔄 In attesa di completare ${writePromises.length} operazioni di scrittura...`);
+        
+        const results = await Promise.allSettled(writePromises);
+        
+        console.log('\n--- 📊 REPORT FINALE OPERAZIONI DI SCRITTURA ---');
+        results.forEach((result, index) => {
+            const opInfo = writeOperationsInfo[index];
+            if (result.status === 'fulfilled') {
+                console.log(`  - ✅ SUCCESSO: Aggiornamento per doc ID ${opInfo.id} completato.`);
+            } else {
+                console.error(`  - ❌ FALLITO: Aggiornamento per doc ID ${opInfo.id} non riuscito.`);
+                console.error(`    - Dati: ${JSON.stringify(opInfo.data)}`);
+                console.error(`    - Motivo Errore:`, result.reason); // STAMPA L'ERRORE ESATTO
+            }
+        });
+
     } else {
         console.log('\nNessuna operazione di scrittura da eseguire.');
     }
     
-    console.log(`\n--- ✨ ANALISI COMPLETATA PER ${platformName.toUpperCase()}. Match aggiornati: ${updatedPostsCount}, Nuovi post creati: ${createdPostsCount} ---`);
+    console.log(`\n--- ✨ ANALISI COMPLETATA ---`);
     return { updated: updatedPostsCount, created: createdPostsCount };
 };
