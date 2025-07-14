@@ -102,7 +102,7 @@ export const processAndMatchAnalytics = async (
         }
     }
 
-    // await Promise.all(writePromises); // Disabilitiamo la scrittura per il test
+    await Promise.all(writePromises); // Disabilitiamo la scrittura per il test
     console.log(`--- ANALISI DI DEBUG COMPLETATA. Match teorici trovati: ${updatedPostsCount} ---`);
     return { updated: updatedPostsCount, created: createdPostsCount };
 };
