@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Trash2, Plus, Edit, Ban, Save, Star } from 'lucide-react';
 import type { Progetto } from '../types';
 import { projectColorPalette } from '../data/colorPalette';
 import { BaseModal } from './BaseModal';
 import { useTheme } from '../contexts/ThemeContext';
-import { type User } from 'firebase/auth'; // Importa il tipo User per le props
+import { type User } from 'firebase/auth';
 
 interface ProjectManagerModalProps {
   progetti: Progetto[];
-  user: User | null; // Prop per ricevere i dati dell'utente, incluso il piano
+  user: User | null;
   onClose: () => void;
   onAddProject: (newProjectData: { nome: string; color: string; }) => void;
   onUpdateProject: (projectId: string, updatedData: { nome: string; color: string; }) => void;
@@ -28,7 +29,6 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const { getActiveColor } = useTheme();
 
-  // FIX: La logica ora controlla correttamente il piano dell'utente
   // @ts-ignore - 'plan' è una proprietà custom che aggiungiamo all'oggetto user
   const isFreeTierLimitReached = user?.plan !== 'pro' && progetti.length >= 1;
   
@@ -119,7 +119,11 @@ export const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                     <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 flex items-center justify-center gap-2">
                         <Star size={16}/> Il piano Free include 1 solo progetto.
                     </p>
-                    <button className="font-bold text-sm text-yellow-900 dark:text-yellow-100 underline hover:opacity-80">Passa a Pro per progetti illimitati!</button>
+                    <Link to="/upgrade" onClick={onClose}>
+                      <span className="font-bold text-sm text-yellow-900 dark:text-yellow-100 underline hover:opacity-80">
+                        Passa a Pro per progetti illimitati!
+                      </span>
+                    </Link>
                 </div>
             )}
           </div>

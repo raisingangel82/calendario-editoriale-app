@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { db, auth } from './firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
 import { signOut, type User } from 'firebase/auth';
@@ -27,6 +27,8 @@ import { ImportModal } from './components/ImportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
 import { ExportModal } from './components/ExportModal';
 import { AnalyticsImportModal } from './components/AnalyticsImportModal';
+import { UpgradePage } from './components/UpgradePage';
+import { SuccessPage } from './components/SuccessPage';
 import type { Post, Progetto, Categoria, PlatformData } from './types';
 
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
@@ -60,6 +62,7 @@ function MainLayout() {
   const { user } = useAuth();
   const isDesktop = useBreakpoint();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [progetti, setProgetti] = useState<Progetto[]>([]);
@@ -97,17 +100,25 @@ function MainLayout() {
     
     setLoadingData(true);
 
-    const userDocRef = doc(db, 'users', user.uid);
-    const unsubUser = onSnapshot(userDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const userData = docSnap.data();
-            setFullUser({ ...user, plan: userData.plan }); 
-            setIsProUser(userData.plan === 'pro');
-        } else {
-            setFullUser(user);
+    // --- INIZIO MODIFICA: ASCOLTIAMO LA COLLEZIONE CORRETTA ---
+    // Questo listener cerca un abbonamento attivo nella collezione creata dall'estensione Stripe.
+    const subscriptionsRef = collection(db, 'customers', user.uid, 'subscriptions');
+    const qSubscriptions = query(subscriptionsRef, where("status", "in", ["trialing", "active"]));
+
+    const unsubSubscriptions = onSnapshot(qSubscriptions, (snapshot) => {
+        if (snapshot.empty) {
+            // Nessun abbonamento attivo trovato
             setIsProUser(false);
+            setFullUser({ ...user, plan: 'free' });
+        } else {
+            // Trovato almeno un abbonamento attivo
+            setIsProUser(true);
+            // Prendiamo il ruolo dal primo abbonamento attivo (es. 'pro')
+            const plan = snapshot.docs[0].data().role || 'pro';
+            setFullUser({ ...user, plan: plan });
         }
     });
+    // --- FINE MODIFICA ---
 
     const userPrefsRef = doc(db, 'userPreferences', user.uid);
     const unsubUserPrefs = onSnapshot(userPrefsRef, (docSnap) => {
@@ -158,13 +169,29 @@ function MainLayout() {
         unsubPosts(); 
         unsubProgetti(); 
         unsubPlatforms();
-        unsubUser();
+        unsubSubscriptions(); // Pulisce il nuovo listener
         unsubUserPrefs();
     };
   }, [user]);
 
   useEffect(() => {
-    if (location.pathname !== '/stats') {
+    if (location.pathname.startsWith('/stats')) {
+         switch (statsActiveView) {
+            case 'produzione':
+                setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('performance'), label: 'Vai a Performance' });
+                break;
+            case 'performance':
+                if (isProUser) {
+                  setActionConfig({ icon: Wand, onClick: () => setStatsActiveView('analisiAI'), label: 'Genera Analisi AI (Pro)' });
+                } else {
+                  setActionConfig({ icon: LockKeyhole, onClick: () => navigate('/upgrade'), label: 'Analisi AI (Solo Pro)' });
+                }
+                break;
+            case 'analisiAI':
+                setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('produzione'), label: 'Torna a Produzione' });
+                break;
+          }
+    } else {
       setStatsActiveView('produzione');
       switch (location.pathname) {
           case '/todo':
@@ -173,29 +200,19 @@ function MainLayout() {
           case '/utility':
               setActionConfig({ icon: UploadCloud, onClick: () => setIsAnalyticsModalOpen(true), label: 'Importa Analytics' });
               break;
+          case '/upgrade':
+              setActionConfig({ icon: Plus, onClick: () => {}, label: 'Piano Upgrade' });
+              break;
+          case '/success':
+              setActionConfig({ icon: Plus, onClick: () => {}, label: 'Pagamento Riuscito' });
+              break;
           case '/':
           default:
               setActionConfig({ icon: Plus, onClick: () => setIsAddModalOpen(true), label: 'Nuovo Post' });
               break;
       }
-    } else {
-      switch (statsActiveView) {
-        case 'produzione':
-            setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('performance'), label: 'Vai a Performance' });
-            break;
-        case 'performance':
-            if (isProUser) {
-              setActionConfig({ icon: Wand, onClick: () => setStatsActiveView('analisiAI'), label: 'Genera Analisi AI (Pro)' });
-            } else {
-              setActionConfig({ icon: LockKeyhole, onClick: () => {}, label: 'Analisi AI (Solo Pro)' });
-            }
-            break;
-        case 'analisiAI':
-            setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('produzione'), label: 'Torna a Produzione' });
-            break;
-      }
     }
-  }, [location.pathname, statsActiveView, isProUser]);
+  }, [location.pathname, statsActiveView, isProUser, navigate]);
   
   const handleSetWorkingDays = async (days: number[]) => {
       if(user) await setDoc(doc(db, 'userPreferences', user.uid), { workingDays: days }, { merge: true });
@@ -258,7 +275,7 @@ function MainLayout() {
   };
 
   const handleDuplicatePost = async (post: Post) => {
-    if (user) {
+    if (user && isProUser) {
       const { id, performance, ...data } = post;
       await addDoc(collection(db, 'contenuti'), { ...data, userId: user.uid, statoProdotto: false, statoPubblicato: false });
       handleCloseModals();
@@ -288,6 +305,7 @@ function MainLayout() {
   };
   
   const handleExportDatabase = () => {
+    if(!isProUser) return;
     const dataToExport = { posts, progetti, platforms };
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(dataToExport, null, 2))}`;
     const link = document.createElement("a");
@@ -304,7 +322,7 @@ function MainLayout() {
   const handleDeleteProject = async (id: string) => await deleteDoc(doc(db, 'progetti', id));
 
   const handleAddPlatform = async (data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => {
-    if(user) await addDoc(collection(db, 'platforms'), { ...data, userId: user.uid, iconName: 'Sparkles' });
+    if(user && isProUser) await addDoc(collection(db, 'platforms'), { ...data, userId: user.uid, iconName: 'Sparkles' });
   };
   const handleUpdatePlatform = async (id: string, data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => {
     await updateDoc(doc(db, "platforms", id), data);
@@ -322,23 +340,13 @@ function MainLayout() {
     processAndMatchAnalytics(parsedData, platformName, posts, user.uid, strategy)
       .then(result => {
           if (!result) return;
-
           const { updated, updatedPostsData } = result;
-
           if (updated > 0 && updatedPostsData.size > 0) {
-              console.log("Aggiornamento chirurgico dello stato locale...");
-              
               setPosts(currentPosts => 
                   currentPosts.map(post => {
                       if (updatedPostsData.has(post.id)) {
                           const newPerformanceData = updatedPostsData.get(post.id);
-                          return { 
-                              ...post, 
-                              performance: {
-                                  ...post.performance,
-                                  ...newPerformanceData
-                              }
-                          };
+                          return { ...post, performance: { ...post.performance, ...newPerformanceData } };
                       }
                       return post;
                   })
@@ -386,9 +394,6 @@ function MainLayout() {
                 onImportClick={() => setIsImportModalOpen(true)} 
                 onExportClick={handleExportDatabase} 
                 onProjectsClick={() => setIsProjectModalOpen(true)}
-                onLogoutClick={() => signOut(auth)}
-                workingDays={workingDays} 
-                setWorkingDays={handleSetWorkingDays}
                 platforms={platforms}
                 onAddPlatform={handleAddPlatform}
                 onUpdatePlatform={handleUpdatePlatform}
@@ -398,6 +403,8 @@ function MainLayout() {
               />
             } 
           />
+          <Route path="/upgrade" element={<UpgradePage />} />
+          <Route path="/success" element={<SuccessPage />} />
       </Routes>
   );
 
@@ -420,28 +427,9 @@ function MainLayout() {
       
       {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModals} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
       {isImportModalOpen && (<ImportModal onClose={handleCloseModals} onImport={handleImport} />)}
-      {isProjectModalOpen && ( 
-        <ProjectManagerModal 
-            onClose={() => setIsProjectModalOpen(false)} 
-            progetti={progetti} 
-            user={fullUser}
-            onAddProject={handleAddProject} 
-            onUpdateProject={handleUpdateProject} 
-            onDeleteProject={handleDeleteProject} 
-        /> 
-      )}
-      <ExportModal 
-          isOpen={isExportModalOpen}
-          onClose={handleCloseModals}
-          onExport={handleExportFromTodo}
-          maxCount={posts.filter(p => !p.statoProdotto).length}
-      />
-      <AnalyticsImportModal 
-        isOpen={isAnalyticsModalOpen}
-        onClose={handleCloseModals}
-        platforms={platforms}
-        onAnalyticsImport={handleAnalyticsImport}
-      />
+      {isProjectModalOpen && ( <ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} user={fullUser} onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} /> )}
+      <ExportModal isOpen={isExportModalOpen} onClose={handleCloseModals} onExport={handleExportFromTodo} maxCount={posts.filter(p => !p.statoProdotto).length} />
+      <AnalyticsImportModal isOpen={isAnalyticsModalOpen} onClose={handleCloseModals} platforms={platforms} onAnalyticsImport={handleAnalyticsImport} />
     </>
   );
 }
@@ -452,8 +440,8 @@ function AppContent() {
   
   return (
     <Routes>
-      <Route path="/*" element={user ? <MainLayout /> : <Navigate to="/login" />} />
       <Route path="/login" element={!user ? <Auth /> : <Navigate to="/" />} />
+      <Route path="/*" element={user ? <MainLayout /> : <Navigate to="/login" />} />
     </Routes>
   );
 }

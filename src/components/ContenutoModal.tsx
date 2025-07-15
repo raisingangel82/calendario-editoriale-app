@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { format as formatDateFns, parseISO } from 'date-fns';
 import { Trash2, Copy, Check, ArrowRight, Save, Plus, ArrowLeft, ExternalLink, Cloud, Send } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -32,6 +33,7 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   const [isCommentCopied, setIsCommentCopied] = useState(false);
   const userCloudServiceUrl = "https://drive.google.com/";
 
+  // @ts-ignore
   const availablePlatforms = user?.plan === 'pro' ? [...allDefaultPlatforms, ...customPlatforms] : freePlatforms;
   const isEditMode = !!post;
 
@@ -42,7 +44,7 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   const [primoCommento, setPrimoCommento] = useState('');
   const [urlMedia, setUrlMedia] = useState('');
   const [data, setData] = useState('');
-  const [isProdotto, setIsProdotto] = useState(false); // RIPRISTINATO
+  const [isProdotto, setIsProdotto] = useState(false);
   const [isPubblicato, setIsPubblicato] = useState(false);
   const [isMontato, setIsMontato] = useState(false);
 
@@ -67,7 +69,7 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
           setPrimoCommento(post.primoCommento || '');
           setUrlMedia(post.urlMedia || '');
           setData(post.data ? formatDateFns(post.data.toDate(), "yyyy-MM-dd'T'HH:mm") : "");
-          setIsProdotto(post.statoProdotto || false); // RIPRISTINATO
+          setIsProdotto(post.statoProdotto || false);
           setIsPubblicato(post.statoPubblicato || false);
           setIsMontato(post.statoMontato || false);
       } else {
@@ -82,6 +84,7 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   }, [post, progetti, availablePlatforms]);
 
   useEffect(() => {
+    // @ts-ignore
     if (user?.plan === 'pro') {
       const fetchCustomPlatforms = async () => {
         if (!user) return;
@@ -128,7 +131,7 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     const dataToSave: any = {
       projectId, piattaforma, tipoContenuto, descrizione, primoCommento, urlMedia,
       data: data ? parseISO(data) : new Date(),
-      statoProdotto: isProdotto, // RIPRISTINATO
+      statoProdotto: isProdotto,
       statoPubblicato: isPubblicato,
       statoMontato: isMontato,
     };
@@ -136,6 +139,7 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   };
 
   const handleDelete = () => { if (isEditMode && post) onDelete(post.id); };
+  // @ts-ignore
   const handleDuplicate = () => { if (isEditMode && post && user?.plan === 'pro') onDuplicate(post); };
 
   const inputBaseStyle = "w-full bg-gray-100 dark:bg-slate-700/50 border border-gray-300 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 rounded-lg p-3 text-base text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500";
@@ -145,7 +149,22 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     <div className="flex w-full flex-wrap items-center justify-center sm:justify-between gap-4">
       <div className="flex items-center justify-around sm:justify-start w-full sm:w-auto order-2 sm:order-1 sm:gap-2">
         {isEditMode && <button onClick={handleDelete} className="p-3 bg-red-600/10 text-red-600 rounded-lg hover:bg-red-600/20 transition-colors" title="Elimina Post"><Trash2 size={20} /></button>}
-        {isEditMode && <button onClick={handleDuplicate} disabled={user?.plan !== 'pro'} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50" title="Duplica Post (Pro)"><Copy size={20} /></button>}
+        
+        {isEditMode && (
+            // @ts-ignore
+            user?.plan === 'pro' ? (
+                <button onClick={handleDuplicate} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors" title="Duplica Post (Pro)">
+                    <Copy size={20} />
+                </button>
+            ) : (
+                <Link to="/upgrade" onClick={onClose}>
+                    <span className="p-3 block bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors opacity-50" title="Duplica Post (Funzionalità Pro)">
+                        <Copy size={20} />
+                    </span>
+                </Link>
+            )
+        )}
+
         <div className="hidden sm:block h-6 w-px bg-gray-300 dark:bg-slate-600"></div>
         <button onClick={() => window.open(userCloudServiceUrl, '_blank')} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors" title="Apri il servizio cloud"><Cloud size={20} /></button>
         <button onClick={() => urlMedia && window.open(urlMedia, '_blank')} disabled={!urlMedia} className="p-3 bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Apri il link del media"><ExternalLink size={20} /></button>

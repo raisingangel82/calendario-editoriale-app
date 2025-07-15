@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { BellRing, Palette, Upload, Download, Settings, Briefcase, Star, Play, Pause } from 'lucide-react';
 import { PlatformManager } from '../components/PlatformManager';
 import { getMessaging, getToken } from "firebase/messaging";
@@ -62,7 +63,9 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
         const fcmToken = await getToken(messaging, { vapidKey: 'BCvTK43mY8OjbcH1aE-ampackLk0vsQIYgYTDXj2K0obzOGZbQL8a7GivgqDIShYbufcW1b-TwCIn-n53q531T0' });
         
         if (fcmToken) {
+          // @ts-ignore
           const tokenRef = doc(db, 'fcmTokens', user.uid);
+          // @ts-ignore
           await setDoc(tokenRef, { token: fcmToken, userId: user.uid }, { merge: true });
           setNotificationStatus('Notifiche abilitate con successo!');
         } else {
@@ -112,12 +115,21 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
                     <button onClick={onImportClick} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm">
                         <Upload size={16} /> <span className="hidden sm:inline">Importa Dati</span>
                     </button>
-                    <button onClick={onExportClick} disabled={user?.plan !== 'pro'} title={user?.plan !== 'pro' ? "Funzionalità disponibile per gli account Pro" : "Esporta l'intero database"} className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
-                        <Download size={16} /> <span className="hidden sm:inline">Esporta Dati</span>
-                        {user?.plan !== 'pro' && (
-                          <span className="ml-1.5 flex items-center gap-1 text-xs font-bold bg-yellow-400 dark:bg-yellow-500 text-yellow-900 px-1.5 py-0.5 rounded-full"><Star size={12}/> PRO</span>
-                        )}
-                    </button>
+                    
+                    {/* @ts-ignore */}
+                    {user?.plan !== 'pro' ? (
+                        <Link to="/upgrade">
+                            <span title="Funzionalità disponibile per gli account Pro" className="w-full flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm transition-colors opacity-60 cursor-pointer">
+                                <Download size={16} /> <span className="hidden sm:inline">Esporta Dati</span>
+                                <span className="ml-1.5 flex items-center gap-1 text-xs font-bold bg-yellow-400 dark:bg-yellow-500 text-yellow-900 px-1.5 py-0.5 rounded-full"><Star size={12}/> PRO</span>
+                            </span>
+                        </Link>
+                    ) : (
+                        <button onClick={onExportClick} title="Esporta l'intero database" className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 text-sm transition-colors">
+                            <Download size={16} /> <span className="hidden sm:inline">Esporta Dati</span>
+                        </button>
+                    )}
+                    
                     <button onClick={() => onAutoScrollChange(!autoScrollEnabled)} className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-semibold text-sm transition-colors ${autoScrollEnabled ? 'bg-amber-500 text-white' : 'bg-gray-600 text-white hover:bg-gray-700'}`}>
                         {autoScrollEnabled ? <Pause size={16} /> : <Play size={16} />} <span className="hidden sm:inline">AutoScroll</span>
                     </button>

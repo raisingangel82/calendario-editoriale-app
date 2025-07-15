@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { LogOut, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -35,7 +36,6 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            // MODIFICA: Allineata la classe del bordo per il dark mode
             className={`block focus:outline-none rounded-full border-4 border-white dark:border-gray-900 shadow-lg focus:ring-2 ${getActiveColor('ring')} focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-transform hover:scale-105`}
           >
             <AccountIcon className={getActiveColor('bg')} />
@@ -46,10 +46,12 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
                 <p className="font-semibold text-sm text-gray-800 dark:text-gray-200 truncate">{user?.email}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">Piano: {user?.plan || 'Free'}</p>
               </div>
-              {user?.plan === 'free' && (
-                <button className="flex items-center gap-3 w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                  <Star size={16} className={getActiveColor('text')} /> Passa a Pro
-                </button>
+              {user?.plan !== 'pro' && (
+                <Link to="/upgrade" className="block" onClick={() => setIsMenuOpen(false)}>
+                    <span className="flex items-center gap-3 w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      <Star size={16} className={getActiveColor('text')} /> Passa a Pro
+                    </span>
+                </Link>
               )}
               <button
                 onClick={onLogout}
