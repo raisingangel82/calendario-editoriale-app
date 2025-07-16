@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { db, auth } from './firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
-import { signOut, type User } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { Plus, Download, UploadCloud, BarChart3, Wand, LockKeyhole } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import Papa from 'papaparse';
 import { DndContext, useSensor, useSensors, MouseSensor, TouchSensor, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -31,6 +30,7 @@ import { UpgradePage } from './components/UpgradePage';
 import { SuccessPage } from './components/SuccessPage';
 import type { Post, Progetto, Categoria, PlatformData } from './types';
 
+// Funzioni helper (invariate)
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipo = (tipoContenuto || "").toLowerCase();
     if (tipo === 'testo breve con immagine') return 'Testo';
@@ -54,12 +54,11 @@ const normalizeDateToMillis = (date: any): number => {
     return 0;
 };
 
-interface FullUser extends User {
-  plan?: string;
-}
-
 function MainLayout() {
+  // ▼▼▼ MODIFICA: Otteniamo l'utente e lo stato Pro direttamente dal context ▼▼▼
   const { user } = useAuth();
+  const isPro = user?.plan === 'pro' || user?.plan === 'trialing';
+  
   const isDesktop = useBreakpoint();
   const location = useLocation();
   const navigate = useNavigate();
@@ -68,8 +67,6 @@ function MainLayout() {
   const [progetti, setProgetti] = useState<Progetto[]>([]);
   const [platforms, setPlatforms] = useState<PlatformData[]>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [isProUser, setIsProUser] = useState(false);
-  const [fullUser, setFullUser] = useState<FullUser | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -91,8 +88,6 @@ function MainLayout() {
       setPosts([]);
       setProgetti([]);
       setPlatforms([]);
-      setIsProUser(false);
-      setFullUser(null);
       setAutoScrollEnabled(true);
       setLoadingData(false);
       return;
@@ -100,25 +95,8 @@ function MainLayout() {
     
     setLoadingData(true);
 
-    // --- INIZIO MODIFICA: ASCOLTIAMO LA COLLEZIONE CORRETTA ---
-    // Questo listener cerca un abbonamento attivo nella collezione creata dall'estensione Stripe.
-    const subscriptionsRef = collection(db, 'customers', user.uid, 'subscriptions');
-    const qSubscriptions = query(subscriptionsRef, where("status", "in", ["trialing", "active"]));
-
-    const unsubSubscriptions = onSnapshot(qSubscriptions, (snapshot) => {
-        if (snapshot.empty) {
-            // Nessun abbonamento attivo trovato
-            setIsProUser(false);
-            setFullUser({ ...user, plan: 'free' });
-        } else {
-            // Trovato almeno un abbonamento attivo
-            setIsProUser(true);
-            // Prendiamo il ruolo dal primo abbonamento attivo (es. 'pro')
-            const plan = snapshot.docs[0].data().role || 'pro';
-            setFullUser({ ...user, plan: plan });
-        }
-    });
-    // --- FINE MODIFICA ---
+    // ▼▼▼ MODIFICA: Tutta la logica per controllare gli abbonamenti è stata rimossa da qui.
+    // Ora è gestita centralmente da AuthContext.tsx
 
     const userPrefsRef = doc(db, 'userPreferences', user.uid);
     const unsubUserPrefs = onSnapshot(userPrefsRef, (docSnap) => {
@@ -169,7 +147,6 @@ function MainLayout() {
         unsubPosts(); 
         unsubProgetti(); 
         unsubPlatforms();
-        unsubSubscriptions(); // Pulisce il nuovo listener
         unsubUserPrefs();
     };
   }, [user]);
@@ -181,7 +158,8 @@ function MainLayout() {
                 setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('performance'), label: 'Vai a Performance' });
                 break;
             case 'performance':
-                if (isProUser) {
+                // ▼▼▼ MODIFICA: Usiamo la nuova costante `isPro` ▼▼▼
+                if (isPro) {
                   setActionConfig({ icon: Wand, onClick: () => setStatsActiveView('analisiAI'), label: 'Genera Analisi AI (Pro)' });
                 } else {
                   setActionConfig({ icon: LockKeyhole, onClick: () => navigate('/upgrade'), label: 'Analisi AI (Solo Pro)' });
@@ -212,7 +190,8 @@ function MainLayout() {
               break;
       }
     }
-  }, [location.pathname, statsActiveView, isProUser, navigate]);
+    // ▼▼▼ MODIFICA: Aggiorniamo la dipendenza da `isProUser` a `isPro` ▼▼▼
+  }, [location.pathname, statsActiveView, isPro, navigate]);
   
   const handleSetWorkingDays = async (days: number[]) => {
       if(user) await setDoc(doc(db, 'userPreferences', user.uid), { workingDays: days }, { merge: true });
@@ -275,7 +254,8 @@ function MainLayout() {
   };
 
   const handleDuplicatePost = async (post: Post) => {
-    if (user && isProUser) {
+    // ▼▼▼ MODIFICA: Usiamo la nuova costante `isPro` ▼▼▼
+    if (user && isPro) {
       const { id, performance, ...data } = post;
       await addDoc(collection(db, 'contenuti'), { ...data, userId: user.uid, statoProdotto: false, statoPubblicato: false });
       handleCloseModals();
@@ -305,7 +285,8 @@ function MainLayout() {
   };
   
   const handleExportDatabase = () => {
-    if(!isProUser) return;
+    // ▼▼▼ MODIFICA: Usiamo la nuova costante `isPro` ▼▼▼
+    if(!isPro) return;
     const dataToExport = { posts, progetti, platforms };
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(dataToExport, null, 2))}`;
     const link = document.createElement("a");
@@ -322,7 +303,8 @@ function MainLayout() {
   const handleDeleteProject = async (id: string) => await deleteDoc(doc(db, 'progetti', id));
 
   const handleAddPlatform = async (data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => {
-    if(user && isProUser) await addDoc(collection(db, 'platforms'), { ...data, userId: user.uid, iconName: 'Sparkles' });
+    // ▼▼▼ MODIFICA: Usiamo la nuova costante `isPro` ▼▼▼
+    if(user && isPro) await addDoc(collection(db, 'platforms'), { ...data, userId: user.uid, iconName: 'Sparkles' });
   };
   const handleUpdatePlatform = async (id: string, data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => {
     await updateDoc(doc(db, "platforms", id), data);
@@ -375,34 +357,8 @@ function MainLayout() {
       <Routes>
           <Route path="/" element={<Calendario posts={posts} progetti={progetti} workingDays={workingDays} onCardClick={setSelectedPost} onStatusChange={handleStatusChange} autoScrollEnabled={autoScrollEnabled} />} />
           <Route path="/todo" element={<FilteredListView posts={posts} progetti={progetti} onPostClick={setSelectedPost} onStatusChange={handleStatusChange} />} />
-          <Route 
-            path="/stats" 
-            element={
-              <Stats 
-                posts={posts} 
-                progetti={progetti}
-                activeView={statsActiveView}
-                onCardClick={setSelectedPost}
-                onStatusChange={handleStatusChange}
-              />
-            } 
-          />
-          <Route 
-            path="/utility" 
-            element={
-              <Impostazioni 
-                onImportClick={() => setIsImportModalOpen(true)} 
-                onExportClick={handleExportDatabase} 
-                onProjectsClick={() => setIsProjectModalOpen(true)}
-                platforms={platforms}
-                onAddPlatform={handleAddPlatform}
-                onUpdatePlatform={handleUpdatePlatform}
-                onDeletePlatform={handleDeletePlatform}
-                autoScrollEnabled={autoScrollEnabled}
-                onAutoScrollChange={handleSetAutoScroll}
-              />
-            } 
-          />
+          <Route path="/stats" element={ <Stats posts={posts} progetti={progetti} activeView={statsActiveView} onCardClick={setSelectedPost} onStatusChange={handleStatusChange} /> } />
+          <Route path="/utility" element={ <Impostazioni onImportClick={() => setIsImportModalOpen(true)} onExportClick={handleExportDatabase} onProjectsClick={() => setIsProjectModalOpen(true)} platforms={platforms} onAddPlatform={handleAddPlatform} onUpdatePlatform={handleUpdatePlatform} onDeletePlatform={handleDeletePlatform} autoScrollEnabled={autoScrollEnabled} onAutoScrollChange={handleSetAutoScroll} /> } />
           <Route path="/upgrade" element={<UpgradePage />} />
           <Route path="/success" element={<SuccessPage />} />
       </Routes>
@@ -427,7 +383,8 @@ function MainLayout() {
       
       {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModals} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
       {isImportModalOpen && (<ImportModal onClose={handleCloseModals} onImport={handleImport} />)}
-      {isProjectModalOpen && ( <ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} user={fullUser} onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} /> )}
+      {/* ▼▼▼ MODIFICA: Passiamo 'user' dal context invece del vecchio 'fullUser' ▼▼▼ */}
+      {isProjectModalOpen && ( <ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} user={user} onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} /> )}
       <ExportModal isOpen={isExportModalOpen} onClose={handleCloseModals} onExport={handleExportFromTodo} maxCount={posts.filter(p => !p.statoProdotto).length} />
       <AnalyticsImportModal isOpen={isAnalyticsModalOpen} onClose={handleCloseModals} platforms={platforms} onAnalyticsImport={handleAnalyticsImport} />
     </>

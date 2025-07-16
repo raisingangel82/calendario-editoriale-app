@@ -1,10 +1,8 @@
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
-// --- CORREZIONE: Unica riga di import per le funzioni HTTP ---
 import { onCall, HttpsError, onRequest, Request } from "firebase-functions/v2/https";
-import { Response } from "express"; // Import per il tipo della risposta
-// ---
+import { Response } from "express";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
@@ -13,7 +11,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 initializeApp();
 
-// --- CORREZIONE: Definizione di tutti i segreti necessari ---
 const stripeSecretKey = defineString("STRIPE_SECRET_KEY");
 const geminiApiKey = defineString("GEMINI_API_KEY");
 const stripeWebhookSecret = defineString("STRIPE_WEBHOOK_SECRET");
@@ -84,12 +81,10 @@ export const stripeWebhook = onRequest({ region: "europe-west1" }, async (reques
     }
   }
 
-  // Aggiungiamo la gestione della cancellazione dell'abbonamento
   if (event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = subscription.customer as string;
 
-    // Troviamo l'utente tramite il suo customer ID di Stripe
     const usersRef = db.collection('users');
     const q = usersRef.where('stripeId', '==', customerId).limit(1);
     const userSnapshot = await q.get();
@@ -106,45 +101,71 @@ export const stripeWebhook = onRequest({ region: "europe-west1" }, async (reques
 
 
 // =======================================================================================
-// === 3. FUNZIONE GENERAZIONE REPORT AI (CON PROMPT COMPLETO)                         ===
+// === 3. FUNZIONE GENERAZIONE REPORT AI (CON TIMEOUT, LOG E NUOVO PROMPT)             ===
 // =======================================================================================
-export const generateContentReport = onCall({ region: "europe-west1" }, async (request) => {
+export const generateContentReport = onCall({ region: "europe-west1", timeoutSeconds: 300 }, async (request) => {
+  logger.info("Inizio esecuzione di generateContentReport per utente:", request.auth?.uid);
+  
   const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-  if (!request.auth) { throw new HttpsError("unauthenticated", "Funzione non autorizzata."); }
   
-  const postsWithPerformance = request.data.posts;
-  if (!postsWithPerformance || !Array.isArray(postsWithPerformance) || postsWithPerformance.length === 0) { 
-    throw new HttpsError("invalid-argument", "Dati dei post mancanti."); 
+  if (!request.auth) { 
+    logger.warn("Tentativo di chiamata non autenticato.");
+    throw new HttpsError("unauthenticated", "È necessario essere autenticati per usare questa funzione."); 
   }
-  
+
+  const { posts, goal, audience } = request.data;
+
+  if (!posts || !Array.isArray(posts) || posts.length === 0) { 
+    logger.warn("Chiamata con dati dei post non validi:", {uid: request.auth.uid});
+    throw new HttpsError("invalid-argument", "Dati dei post mancanti o non validi."); 
+  }
+  if (!goal || typeof goal !== 'string' || !audience || typeof audience !== 'string') {
+    logger.warn("Chiamata con goal o audience mancanti:", {uid: request.auth.uid});
+    throw new HttpsError("invalid-argument", "Obiettivo e target audience sono obbligatori.");
+  }
+
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
   
+  const listaPiattaforme = [...new Set(posts.map((p: any) => p.piattaforma).filter(Boolean))];
+
   const prompt = `
-    Sei un social media strategist esperto, specializzato nell'analizzare dati per autori e creatori di contenuti. Il tuo tono è incoraggiante, professionale e orientato all'azione.
-    Analizza il seguente elenco di post e le loro performance (in formato JSON) per identificare pattern e generare un report sintetico per l'utente.
+Sei 'Stratagem', un'intelligenza artificiale esperta in data analysis e strategia per social media.
+Analizza i dati forniti per generare un report JSON strutturato con un executive summary, analisi quantitative, analisi tematiche e un piano d'azione.
 
-    DATI DEI POST:
-    ${JSON.stringify(postsWithPerformance, null, 2)}
+**INPUT CONTESTUALE:**
+- **Piattaforme Analizzate:** ${JSON.stringify(listaPiattaforme)}
+- **Obiettivo Principale dell'Utente:** "${goal}"
+- **Target Audience Descritto dall'Utente:** "${audience}"
 
-    RICHIESTA:
-    Basandoti sui dati forniti, genera una risposta in formato JSON con le seguenti chiavi:
-    1. "puntiDiForza": (stringa) Un paragrafo che descrive 2-3 punti di forza evidenti emersi dall'analisi (es. "I tuoi reel sulla scrittura creativa ottengono un engagement eccezionale, specialmente quando pubblichi di martedì. Questo indica che il formato video è il tuo cavallo di battaglia.").
-    2. "areeDiMiglioramento": (stringa) Un paragrafo che descrive 1-2 aree di miglioramento o opportunità non sfruttate (es. "I post testuali, pur essendo ben scritti, ricevono meno interazioni. Potresti provare a trasformare alcuni di questi concetti in caroselli visivi per aumentarne l'impatto.").
-    3. "consigliPratici": (array di stringhe) Una lista di 3 consigli concreti e attuabili che l'utente può applicare subito (es. ["Crea un reel a settimana focalizzato su un consiglio di scrittura.", "Sperimenta con i caroselli per i tuoi post più lunghi.", "Interagisci con i commenti entro la prima ora dalla pubblicazione per stimolare l'algoritmo."]).
-  `;
+**DATI DEI POST (JSON):**
+${JSON.stringify(posts, null, 2)}
+
+**RICHIESTA DI OUTPUT (Formato JSON Obbligatorio):**
+{
+  "executiveSummary": { "titolo": "Report Strategico in Breve", "paragrafo": "Sintesi di 1-2 frasi." },
+  "analisiQuantitativa": { "migliorMomentoPerPubblicare": "Giorno e ora.", "formatoVincente": "Tipo di post.", "piattaformaTop": "Piattaforma." },
+  "analisiTematica": { "pilastriDiContenuto": [ { "tema": "Argomento.", "performance": "Valutazione e dato." } ] },
+  "pianoDAzione": { "titolo": "Prossimi 3 Passi Strategici", "azioni": [ { "azione": "Consiglio specifico.", "motivazione": "Ragione basata sui dati.", "focus": "Obiettivo dell'azione." } ] }
+}
+`;
 
   try {
+    logger.info("Sto per chiamare l'API di Gemini...");
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
+    logger.info("Risposta ricevuta da Gemini. Provo a fare il parsing del JSON.");
+
     try {
-        return JSON.parse(responseText);
+        const jsonData = JSON.parse(responseText);
+        logger.info("Parsing JSON riuscito. Invio la risposta al client.");
+        return jsonData;
     } catch(parseError) {
         logger.error("Errore nel parsing della risposta JSON da Gemini:", parseError, "Testo ricevuto:", responseText);
         throw new HttpsError("internal", "La risposta AI non era in un formato JSON valido.");
     }
   } catch (error) {
-    logger.error("Errore chiamata Gemini:", error);
-    throw new HttpsError("internal", "Impossibile generare il report AI.");
+    logger.error("Errore durante la chiamata all'API di Gemini:", error);
+    throw new HttpsError("internal", "Impossibile generare il report AI a causa di un errore del servizio Gemini.");
   }
 });
 

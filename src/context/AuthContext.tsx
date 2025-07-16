@@ -1,14 +1,14 @@
-// src/context/AuthContext.tsx (Corretto e Completo)
+// src/context/AuthContext.tsx (Versione Definitiva per la tua struttura)
 
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'; // onSnapshot è meglio per la reattività
 import { auth, db } from '../firebase';
 
 export interface AppUser {
   uid: string;
   email: string | null;
-  plan: 'free' | 'pro';
+  plan: 'free' | 'pro'; // Puoi aggiungere altri piani se necessario
   photoURL?: string | null;
 }
 
@@ -24,52 +24,54 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (firebaseUser) {
-          // Tentiamo di leggere il documento dell'utente da Firestore
-          const userDocRef = doc(db, "users", firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
-
-          if (userDoc.exists()) {
+    // Listener per l'autenticazione di Firebase
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        // Se l'utente è loggato, ascoltiamo le modifiche al suo documento in Firestore
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        
+        const unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
             // Se il documento esiste, creiamo il nostro oggetto utente personalizzato
+            const userData = docSnap.data();
             setUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               photoURL: firebaseUser.photoURL,
-              plan: userDoc.data().plan || 'free',
+              plan: userData.plan || 'free', // Se 'plan' non esiste, l'utente è 'free'
             });
           } else {
-            // Se il documento non esiste (es. nuovo utente la cui scrittura non è completa),
-            // consideralo come utente non ancora profilato.
-            console.warn("Utente autenticato ma documento non trovato in Firestore:", firebaseUser.uid);
-            setUser(null); 
+            // Se il documento non esiste, consideralo 'free' per evitare errori
+             console.warn("Documento utente non trovato, impostato come 'free'.");
+             setUser({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                photoURL: firebaseUser.photoURL,
+                plan: 'free',
+            });
           }
-        } else {
-          // Nessun utente loggato
-          setUser(null);
-        }
-      } catch (error) {
-        // Se c'è un errore (es. regole di sicurezza), lo logghiamo e resettiamo l'utente
-        console.error("Errore durante il recupero del profilo utente:", error);
+          setLoading(false);
+        });
+
+        // Ritorna la funzione per pulire il listener di onSnapshot quando l'utente fa logout
+        return () => unsubscribeSnapshot();
+
+      } else {
+        // Nessun utente loggato
         setUser(null);
-      } finally {
-        // ▼▼▼ LA CORREZIONE FONDAMENTALE ▼▼▼
-        // Questa riga viene eseguita SEMPRE, sia dopo il try che dopo il catch.
-        // Garantisce che l'app smetta di caricare in ogni caso.
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    // Pulisce il listener di autenticazione quando il componente viene smontato
+    return () => unsubscribeAuth();
   }, []);
 
   const value = { user, loading };
 
   return (
     <AuthContext.Provider value={value}>
-      {/* Mostra i figli solo quando il caricamento iniziale è terminato */}
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
