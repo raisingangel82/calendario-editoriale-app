@@ -52,7 +52,7 @@ export const UpgradePage = () => {
             const createStripeCheckout = httpsCallable(functions, 'createStripeCheckout');
             
             // ID del prezzo del piano Pro su Stripe
-            const priceId = 'price_1RlEMFGMvHfHEDrI0mGFX5KJ'; 
+            const priceId = 'price_1Rl7lqGMvHfHEDrIgdl2mghz'; 
 
             // Invia l'ID del prezzo e l'URL di origine corrente al backend
             const result = await createStripeCheckout({

@@ -1,52 +1,39 @@
-/**
- * File: functions/src/index.ts
- * Funzioni Backend per AuthorFlow - Versione Finale
- *
- * Funzionalità:
- * 1. createStripeCheckout: Crea una sessione di pagamento Stripe con reindirizzamento dinamico.
- * 2. generateContentReport: Usa l'API di Gemini per generare analisi AI.
- * 3. sendScheduledNotifications: Invia notifiche push programmate per i post.
- */
-
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+// --- CORREZIONE: Unica riga di import per le funzioni HTTP ---
+import { onCall, HttpsError, onRequest, Request } from "firebase-functions/v2/https";
+import { Response } from "express"; // Import per il tipo della risposta
+// ---
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import Stripe from "stripe";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Inizializza il Firebase Admin SDK
 initializeApp();
 
-// --- CONFIGURAZIONE CHIAVI SEGRETE (Metodo Gen2) ---
+// --- CORREZIONE: Definizione di tutti i segreti necessari ---
 const stripeSecretKey = defineString("STRIPE_SECRET_KEY");
 const geminiApiKey = defineString("GEMINI_API_KEY");
+const stripeWebhookSecret = defineString("STRIPE_WEBHOOK_SECRET");
 
-// --- INIZIALIZZAZIONE DEI SERVIZI FIREBASE ---
 const db = getFirestore();
 const messaging = getMessaging();
 
-// L'inizializzazione di Stripe e Gemini è spostata DENTRO ogni funzione per il lazy loading.
-
 // =======================================================================================
-// === 1. FUNZIONE PAGAMENTI STRIPE                                                    ===
+// === 1. FUNZIONE PER CREARE LA SESSIONE DI PAGAMENTO                                 ===
 // =======================================================================================
 export const createStripeCheckout = onCall({ region: "europe-west1" }, async (request) => {
-  // Inizializzazione LAZY: avviene solo quando la funzione è chiamata.
   const stripe = new Stripe(stripeSecretKey.value(), { apiVersion: "2025-06-30.basil" });
 
   if (!request.auth) {
-    throw new HttpsError("unauthenticated", "È necessario essere autenticati per effettuare un acquisto.");
+    throw new HttpsError("unauthenticated", "È necessario essere autenticati.");
   }
 
-  // Riceviamo sia priceId che l'URL di origine dal frontend
   const { priceId, origin } = request.data;
-  
   if (!priceId || !origin) {
-    throw new HttpsError("invalid-argument", "L'ID del prezzo e l'URL di origine sono obbligatori.");
+    throw new HttpsError("invalid-argument", "ID del prezzo e origine sono obbligatori.");
   }
 
   try {
@@ -54,55 +41,96 @@ export const createStripeCheckout = onCall({ region: "europe-west1" }, async (re
       payment_method_types: ["card"],
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      client_reference_id: request.auth?.uid, // Collega la sessione all'ID utente di Firebase
-      // Usiamo l'origine dinamica per costruire gli URL di reindirizzamento
-      success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+      client_reference_id: request.auth.uid,
+      success_url: `${origin}/success`,
       cancel_url: `${origin}/upgrade`,
     });
 
     if (!session.url) {
-      throw new HttpsError("internal", "Impossibile creare la sessione di pagamento Stripe.");
+      throw new HttpsError("internal", "Impossibile creare la sessione di pagamento.");
     }
-    
     return { url: session.url };
   } catch (error) {
-    logger.error("Errore durante la creazione della sessione Stripe:", error);
-    throw new HttpsError(
-      "internal",
-      "Si è verificato un errore interno. Riprova più tardi."
-    );
+    logger.error("Errore creazione sessione Stripe:", error);
+    throw new HttpsError("internal", "Errore interno durante la creazione del pagamento.");
   }
+});
+
+// =======================================================================================
+// === 2. WEBHOOK DI STRIPE PER AGGIORNARE LO STATO UTENTE                             ===
+// =======================================================================================
+export const stripeWebhook = onRequest({ region: "europe-west1" }, async (request: Request, response: Response) => {
+  const stripe = new Stripe(stripeSecretKey.value(), { apiVersion: "2025-06-30.basil" });
+  const sig = request.headers["stripe-signature"] as string;
+  let event: Stripe.Event;
+
+  try {
+    event = stripe.webhooks.constructEvent(request.rawBody, sig, stripeWebhookSecret.value());
+  } catch (err) {
+    const error = err as Error;
+    logger.error(`Errore verifica Webhook:`, error.message);
+    response.status(400).send(`Webhook Error: ${error.message}`);
+    return;
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const userId = session.client_reference_id;
+
+    if (userId) {
+      logger.info(`Pagamento completato per utente: ${userId}. Aggiorno il piano a 'pro'.`);
+      const userRef = db.collection('users').doc(userId);
+      await userRef.set({ plan: 'pro' }, { merge: true });
+    }
+  }
+
+  // Aggiungiamo la gestione della cancellazione dell'abbonamento
+  if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId = subscription.customer as string;
+
+    // Troviamo l'utente tramite il suo customer ID di Stripe
+    const usersRef = db.collection('users');
+    const q = usersRef.where('stripeId', '==', customerId).limit(1);
+    const userSnapshot = await q.get();
+
+    if (!userSnapshot.empty) {
+        const userDoc = userSnapshot.docs[0];
+        logger.info(`Abbonamento cancellato per utente: ${userDoc.id}. Aggiorno il piano a 'free'.`);
+        await userDoc.ref.set({ plan: 'free' }, { merge: true });
+    }
+  }
+
+  response.status(200).send();
 });
 
 
 // =======================================================================================
-// === 2. FUNZIONE GENERAZIONE REPORT AI (Mantenuta e aggiornata a Gen2)             ===
+// === 3. FUNZIONE GENERAZIONE REPORT AI (CON PROMPT COMPLETO)                         ===
 // =======================================================================================
 export const generateContentReport = onCall({ region: "europe-west1" }, async (request) => {
-  // Inizializzazione LAZY
   const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "La funzione deve essere chiamata da un utente autenticato.");
-  }
-
+  if (!request.auth) { throw new HttpsError("unauthenticated", "Funzione non autorizzata."); }
+  
   const postsWithPerformance = request.data.posts;
-  if (!postsWithPerformance || !Array.isArray(postsWithPerformance) || postsWithPerformance.length === 0) {
-    throw new HttpsError("invalid-argument", "La funzione richiede un elenco di post.");
+  if (!postsWithPerformance || !Array.isArray(postsWithPerformance) || postsWithPerformance.length === 0) { 
+    throw new HttpsError("invalid-argument", "Dati dei post mancanti."); 
   }
   
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
   
   const prompt = `
     Sei un social media strategist esperto, specializzato nell'analizzare dati per autori e creatori di contenuti. Il tuo tono è incoraggiante, professionale e orientato all'azione.
     Analizza il seguente elenco di post e le loro performance (in formato JSON) per identificare pattern e generare un report sintetico per l'utente.
+
     DATI DEI POST:
     ${JSON.stringify(postsWithPerformance, null, 2)}
+
     RICHIESTA:
     Basandoti sui dati forniti, genera una risposta in formato JSON con le seguenti chiavi:
-    1. "puntiDiForza": (stringa) Un paragrafo che descrive 2-3 punti di forza evidenti emersi dall'analisi.
-    2. "areeDiMiglioramento": (stringa) Un paragrafo che descrive 1-2 aree di miglioramento o opportunità non sfruttate.
-    3. "consigliPratici": (array di stringhe) Una lista di 3 consigli concreti e attuabili che l'utente può applicare subito.
+    1. "puntiDiForza": (stringa) Un paragrafo che descrive 2-3 punti di forza evidenti emersi dall'analisi (es. "I tuoi reel sulla scrittura creativa ottengono un engagement eccezionale, specialmente quando pubblichi di martedì. Questo indica che il formato video è il tuo cavallo di battaglia.").
+    2. "areeDiMiglioramento": (stringa) Un paragrafo che descrive 1-2 aree di miglioramento o opportunità non sfruttate (es. "I post testuali, pur essendo ben scritti, ricevono meno interazioni. Potresti provare a trasformare alcuni di questi concetti in caroselli visivi per aumentarne l'impatto.").
+    3. "consigliPratici": (array di stringhe) Una lista di 3 consigli concreti e attuabili che l'utente può applicare subito (es. ["Crea un reel a settimana focalizzato su un consiglio di scrittura.", "Sperimenta con i caroselli per i tuoi post più lunghi.", "Interagisci con i commenti entro la prima ora dalla pubblicazione per stimolare l'algoritmo."]).
   `;
 
   try {
@@ -115,14 +143,13 @@ export const generateContentReport = onCall({ region: "europe-west1" }, async (r
         throw new HttpsError("internal", "La risposta AI non era in un formato JSON valido.");
     }
   } catch (error) {
-    logger.error("Errore durante la chiamata a Gemini:", error);
-    throw new HttpsError("internal", "Impossibile generare il report AI in questo momento.");
+    logger.error("Errore chiamata Gemini:", error);
+    throw new HttpsError("internal", "Impossibile generare il report AI.");
   }
 });
 
-
 // =======================================================================================
-// === 3. FUNZIONE NOTIFICHE PROGRAMMATE (Mantenuta)                                   ===
+// === 4. FUNZIONE NOTIFICHE PROGRAMMATE (Invariata)                                 ===
 // =======================================================================================
 export const sendScheduledNotifications = onSchedule({ schedule: "every 60 minutes", region: "europe-west1" }, async (event) => {
   const now = new Date();
@@ -160,7 +187,7 @@ export const sendScheduledNotifications = onSchedule({ schedule: "every 60 minut
   logger.info(`Trovati post per ${userNotifications.size} utenti unici.`);
 
   for (const [userId, userPosts] of userNotifications.entries()) {
-    const tokensQuery = await db.collection("subscriptions").where("userId", "==", userId).get();
+    const tokensQuery = await db.collection("fcmTokens").where("userId", "==", userId).get();
     
     if (tokensQuery.empty) {
       logger.warn(`Nessun token di notifica trovato per l'utente ${userId}`);
