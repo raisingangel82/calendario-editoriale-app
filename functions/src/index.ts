@@ -7,12 +7,12 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import Stripe from "stripe";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
+//import { GoogleGenerativeAI } from "@google/generative-ai";
+import { VertexAI } from "@google-cloud/vertexai";
 initializeApp();
 
 const stripeSecretKey = defineString("STRIPE_SECRET_KEY");
-const geminiApiKey = defineString("GEMINI_API_KEY");
+//const geminiApiKey = defineString("GEMINI_API_KEY");
 const stripeWebhookSecret = defineString("STRIPE_WEBHOOK_SECRET");
 
 const db = getFirestore();
@@ -106,8 +106,9 @@ export const stripeWebhook = onRequest({ region: "europe-west1" }, async (reques
 export const generateContentReport = onCall({ region: "europe-west1", timeoutSeconds: 300 }, async (request) => {
   logger.info("Inizio esecuzione di generateContentReport per utente:", request.auth?.uid);
   
-  const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-  
+  //const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+  const vertex_ai = new VertexAI({ project: 'calendario-editoriale-so-bc85b', location: 'europe-west1' });
+const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.5-pro' });
   if (!request.auth) { 
     logger.warn("Tentativo di chiamata non autenticato.");
     throw new HttpsError("unauthenticated", "È necessario essere autenticati per usare questa funzione."); 
@@ -124,7 +125,7 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
     throw new HttpsError("invalid-argument", "Obiettivo e target audience sono obbligatori.");
   }
 
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  //const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   
   const listaPiattaforme = [...new Set(posts.map((p: any) => p.piattaforma).filter(Boolean))];
 
@@ -152,7 +153,12 @@ ${JSON.stringify(posts, null, 2)}
   try {
     logger.info("Sto per chiamare l'API di Gemini...");
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    //const responseText = result.response.text();
+    if (!result.response.candidates?.[0]?.content?.parts?.[0]?.text) {
+  logger.error("Risposta AI non valida o vuota:", JSON.stringify(result.response));
+  throw new HttpsError("internal", "L'AI non ha generato una risposta di testo valida.");
+}
+const responseText = result.response.candidates[0].content.parts[0].text;
     logger.info("Risposta ricevuta da Gemini. Provo a fare il parsing del JSON.");
 
     try {
