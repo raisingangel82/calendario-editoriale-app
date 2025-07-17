@@ -62,16 +62,15 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
     setError(null);
 
     try {
-      // --- INIZIO BLOCCO MODIFICATO ---
       // 1. Ottieni un riferimento al servizio Firebase Functions
       const functions = getFunctions();
       // 2. Crea un riferimento alla tua funzione specifica per nome
-      const generateContentReport = httpsCallable(functions, 'generateContentReport');
+      const generateContentReportCallable = httpsCallable(functions, 'generateContentReport');
       
       const postsWithPerformance = posts.filter(p => p.performance && p.piattaforma);
       
       // 3. Chiama la funzione con i dati necessari
-      const result = await generateContentReport({ 
+      const result = await generateContentReportCallable({ 
         posts: postsWithPerformance,
         goal: obiettivo,
         audience: audience
@@ -79,7 +78,6 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
       
       // 4. Il risultato è contenuto nella proprietà 'data' dell'oggetto di risposta
       const data = result.data as AIReport;
-      // --- FINE BLOCCO MODIFICATO ---
       
       setReport(data);
       setStatoAnalisi('success');
@@ -87,7 +85,14 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
     } catch (err: any) {
       console.error("Errore durante la chiamata alla funzione Firebase:", err);
       // L'oggetto di errore dell'SDK Firebase ha una proprietà 'message'
-      setError(err.message || "Si è verificato un errore sconosciuto durante la generazione del report.");
+      // o 'details' per gli HttpsError.
+      let errorMessage = "Si è verificato un errore sconosciuto durante la generazione del report.";
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.details && typeof err.details === 'string') {
+        errorMessage = err.details;
+      }
+      setError(errorMessage);
       setStatoAnalisi('error');
     }
   };
@@ -144,7 +149,7 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
   );
 };
 
-// ... Il componente Loader rimane invariato ...
+// Il componente Loader rimane invariato
 const Loader: React.FC<{ text: string }> = ({ text }) => (
     <div className="flex flex-col items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
       <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

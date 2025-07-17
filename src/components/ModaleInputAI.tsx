@@ -11,13 +11,18 @@ export const ModaleInputAI: React.FC<ModaleInputAIProps> = ({ isOpen, onClose, o
   const [obiettivo, setObiettivo] = useState('');
   const [audience, setAudience] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Stato per il messaggio di errore
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!obiettivo || !audience) {
-        alert("Per favore, compila entrambi i campi per un'analisi accurata.");
+        // Imposta il messaggio di errore invece di usare alert()
+        setErrorMessage("Per favore, compila entrambi i campi per un'analisi accurata.");
         return;
     }
+    // Resetta il messaggio di errore se i campi sono validi
+    setErrorMessage(null);
     setIsSubmitting(true);
     onSubmit(obiettivo, audience);
   };
@@ -54,6 +59,12 @@ export const ModaleInputAI: React.FC<ModaleInputAIProps> = ({ isOpen, onClose, o
       footer={footerContent}
     >
       <form id="ai-input-form" onSubmit={handleSubmit} className="space-y-6">
+        {/* Mostra il messaggio di errore se presente */}
+        {errorMessage && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative" role="alert">
+            <span className="block sm:inline">{errorMessage}</span>
+          </div>
+        )}
         <div>
           <label htmlFor="obiettivo" className={labelStyle}>
             Qual è il tuo obiettivo principale?
@@ -61,7 +72,7 @@ export const ModaleInputAI: React.FC<ModaleInputAIProps> = ({ isOpen, onClose, o
           <textarea
             id="obiettivo"
             value={obiettivo}
-            onChange={(e) => setObiettivo(e.target.value)}
+            onChange={(e) => { setObiettivo(e.target.value); setErrorMessage(null); }} // Resetta errore alla digitazione
             rows={4}
             className={`${textareaBaseStyle} resize-y`}
             placeholder="Es. 'Voglio aumentare le vendite del mio nuovo libro del 20% nei prossimi 3 mesi' oppure 'Voglio far crescere il mio profilo per diventare un punto di riferimento per la scrittura fantasy'."
@@ -74,7 +85,7 @@ export const ModaleInputAI: React.FC<ModaleInputAIProps> = ({ isOpen, onClose, o
           <textarea
             id="audience"
             value={audience}
-            onChange={(e) => setAudience(e.target.value)}
+            onChange={(e) => { setAudience(e.target.value); setErrorMessage(null); }} // Resetta errore alla digitazione
             rows={4}
             className={`${textareaBaseStyle} resize-y`}
             placeholder="Es. 'Scrittori emergenti tra i 20 e i 35 anni che cercano consigli pratici su come pubblicare' oppure 'Appassionati di romanzi storici che amano scoprire i retroscena della creazione di un libro'."

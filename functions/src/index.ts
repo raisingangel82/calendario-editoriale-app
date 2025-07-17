@@ -7,16 +7,23 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import Stripe from "stripe";
-//import { GoogleGenerativeAI } from "@google/generative-ai";
 import { VertexAI } from "@google-cloud/vertexai";
+// Importa il modulo 'cors' con un'importazione predefinita
+import cors from 'cors'; // MODIFICA QUI: da 'import * as cors' a 'import cors'
+
 initializeApp();
 
 const stripeSecretKey = defineString("STRIPE_SECRET_KEY");
-//const geminiApiKey = defineString("GEMINI_API_KEY");
 const stripeWebhookSecret = defineString("STRIPE_WEBHOOK_SECRET");
 
 const db = getFirestore();
 const messaging = getMessaging();
+
+// Inizializza il middleware CORS
+// Permetti tutte le origini per semplicità in fase di sviluppo.
+// In produzione, considera di specificare la tua origine esatta:
+// const corsHandler = cors({ origin: 'https://calendario-editoriale-app.vercel.app' });
+const corsHandler = cors({ origin: true });
 
 // =======================================================================================
 // === 1. FUNZIONE PER CREARE LA SESSIONE DI PAGAMENTO                                 ===
@@ -57,46 +64,49 @@ export const createStripeCheckout = onCall({ region: "europe-west1" }, async (re
 // === 2. WEBHOOK DI STRIPE PER AGGIORNARE LO STATO UTENTE                             ===
 // =======================================================================================
 export const stripeWebhook = onRequest({ region: "europe-west1" }, async (request: Request, response: Response) => {
-  const stripe = new Stripe(stripeSecretKey.value(), { apiVersion: "2025-06-30.basil" });
-  const sig = request.headers["stripe-signature"] as string;
-  let event: Stripe.Event;
+  // Applica il middleware CORS alla richiesta webhook
+  corsHandler(request, response, async () => {
+    const stripe = new Stripe(stripeSecretKey.value(), { apiVersion: "2025-06-30.basil" });
+    const sig = request.headers["stripe-signature"] as string;
+    let event: Stripe.Event;
 
-  try {
-    event = stripe.webhooks.constructEvent(request.rawBody, sig, stripeWebhookSecret.value());
-  } catch (err) {
-    const error = err as Error;
-    logger.error(`Errore verifica Webhook:`, error.message);
-    response.status(400).send(`Webhook Error: ${error.message}`);
-    return;
-  }
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const userId = session.client_reference_id;
-
-    if (userId) {
-      logger.info(`Pagamento completato per utente: ${userId}. Aggiorno il piano a 'pro'.`);
-      const userRef = db.collection('users').doc(userId);
-      await userRef.set({ plan: 'pro' }, { merge: true });
+    try {
+      event = stripe.webhooks.constructEvent(request.rawBody, sig, stripeWebhookSecret.value());
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`Errore verifica Webhook:`, error.message);
+      response.status(400).send(`Webhook Error: ${error.message}`);
+      return;
     }
-  }
 
-  if (event.type === 'customer.subscription.deleted') {
-    const subscription = event.data.object as Stripe.Subscription;
-    const customerId = subscription.customer as string;
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const userId = session.client_reference_id;
 
-    const usersRef = db.collection('users');
-    const q = usersRef.where('stripeId', '==', customerId).limit(1);
-    const userSnapshot = await q.get();
-
-    if (!userSnapshot.empty) {
-        const userDoc = userSnapshot.docs[0];
-        logger.info(`Abbonamento cancellato per utente: ${userDoc.id}. Aggiorno il piano a 'free'.`);
-        await userDoc.ref.set({ plan: 'free' }, { merge: true });
+      if (userId) {
+        logger.info(`Pagamento completato per utente: ${userId}. Aggiorno il piano a 'pro'.`);
+        const userRef = db.collection('users').doc(userId);
+        await userRef.set({ plan: 'pro' }, { merge: true });
+      }
     }
-  }
 
-  response.status(200).send();
+    if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId = subscription.customer as string;
+
+      const usersRef = db.collection('users');
+      const q = usersRef.where('stripeId', '==', customerId).limit(1);
+      const userSnapshot = await q.get();
+
+      if (!userSnapshot.empty) {
+          const userDoc = userSnapshot.docs[0];
+          logger.info(`Abbonamento cancellato per utente: ${userDoc.id}. Aggiorno il piano a 'free'.`);
+          await userDoc.ref.set({ plan: 'free' }, { merge: true });
+      }
+    }
+
+    response.status(200).send();
+  });
 });
 
 
@@ -172,6 +182,10 @@ ${JSON.stringify(posts, null, 2)}
     }
   } catch (error) {
     logger.error("Errore durante la chiamata all'API di Vertex AI:", error);
+    // Cattura e rilancia HttpsError se già presente, altrimenti crea un nuovo HttpsError
+    if (error instanceof HttpsError) {
+      throw error;
+    }
     throw new HttpsError("internal", "Impossibile generare il report AI a causa di un errore del servizio AI.");
   }
 });
