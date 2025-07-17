@@ -124,7 +124,7 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
     throw new HttpsError("invalid-argument", "Obiettivo e target audience sono obbligatori.");
   }
 
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   
   const listaPiattaforme = [...new Set(posts.map((p: any) => p.piattaforma).filter(Boolean))];
 
