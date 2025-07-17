@@ -20,6 +20,13 @@ const messaging = getMessaging();
 
 const corsHandler = cors({ origin: true });
 
+// Funzione helper per estrarre il gancio (prima frase) da un testo
+const getHook = (text: string = ''): string => {
+  if (!text) return "Nessun testo fornito";
+  const sentences = text.match(/[^.!?]+[.!?]*/);
+  return sentences ? sentences[0].trim() : text.substring(0, 150); // Limita a 150 caratteri se non ci sono frasi complete
+};
+
 // =======================================================================================
 // === 1. FUNZIONE PER CREARE LA SESSIONE DI PAGAMENTO                                 ===
 // =======================================================================================
@@ -145,15 +152,16 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
         tipoContenuto: post.tipoContenuto,
         data: post.data, 
         titolo: post.titolo,
-        descrizione: post.descrizione,
-        performance: { // Includi le metriche originali e il punteggio complessivo
+        descrizione: post.descrizione, 
+        gancio: getHook(post.descrizione), // UTILIZZO DI getHook QUI
+        performance: { 
           views: views,
           likes: likes,
           comments: comments,
           punteggioComplessivo: punteggioComplessivo
         }
       };
-    }).filter((post: any) => post.performance.punteggioComplessivo > 0); // Filtra i post senza performance significative
+    }).filter((post: any) => post.performance.punteggioComplessivo > 0); 
 
     // Raggruppa i post per piattaforma
     const postsByPlatform: { [key: string]: any[] } = {};
@@ -166,27 +174,23 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
     });
 
     let postsForAnalysis: any[] = [];
-    const maxPostsPerCategory = 10; // Limite per top e worst per piattaforma
+    const maxPostsPerCategory = 10; 
 
     for (const platform in postsByPlatform) {
         if (postsByPlatform.hasOwnProperty(platform)) {
             const platformPosts = postsByPlatform[platform];
 
-            // Ordina i post di questa piattaforma per il punteggio complessivo (dal migliore al peggiore)
             const sortedPlatformPosts = [...platformPosts].sort((a, b) => {
                 return b.performance.punteggioComplessivo - a.performance.punteggioComplessivo; 
             });
 
-            // Seleziona i migliori N e i peggiori N post per questa piattaforma
             const topN = sortedPlatformPosts.slice(0, maxPostsPerCategory);
             const worstN = sortedPlatformPosts.slice(Math.max(0, sortedPlatformPosts.length - maxPostsPerCategory));
 
-            // Combina e aggiungi all'array finale, evitando duplicati
             postsForAnalysis.push(...Array.from(new Set([...topN, ...worstN])));
         }
     }
 
-    // Rimuovi duplicati finali se presenti (es. un post è sia top che worst in piattaforme diverse, improbabile ma per sicurezza)
     const uniquePostsForAnalysis = Array.from(new Map(postsForAnalysis.map(post => [post.id, post])).values());
 
     logger.info(`Analisi basata su ${uniquePostsForAnalysis.length} post (Top ${maxPostsPerCategory} e peggiori ${maxPostsPerCategory} per OGNI piattaforma, valutati con punteggio ponderato).`);
@@ -195,9 +199,9 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
 
     const prompt = `
 Sei 'Stratagem', un'intelligenza artificiale esperta in data analysis e strategia per social media.
-Analizza i dati forniti per generare un report JSON strutturato con un executive summary, analisi quantitative, analisi tematiche e un piano d'azione.
+Il tuo compito è analizzare i dati dei post forniti e generare un report strategico dettagliato in formato JSON.
 La valutazione delle performance dei post è basata su un punteggio complessivo che considera visualizzazioni, mi piace e commenti.
-Mantieni le risposte concise e dirette, evitando prolissità.
+Mantieni le risposte concise e dirette, evitando prolissità, ma assicurati che ogni sezione sia ricca di insight.
 
 **INPUT CONTESTUALE:**
 - **Piattaforme Analizzate:** ${JSON.stringify(listaPiattaforme)}
@@ -208,16 +212,50 @@ Mantieni le risposte concise e dirette, evitando prolissità.
 ${JSON.stringify(uniquePostsForAnalysis, null, 2)}
 
 **RICHIESTA DI OUTPUT (Formato JSON Obbligatorio, racchiuso in un blocco di codice markdown):**
-- L'executive summary deve essere di massimo 2-3 frasi.
-- L'analisi quantitativa deve fare riferimento al "punteggio complessivo" quando parla di performance.
-- L'analisi tematica deve identificare i TOP 3-5 pilastri di contenuto più rilevanti/performanti, basandosi sul punteggio complessivo.
-- Il piano d'azione deve contenere 3 azioni specifiche.
 \`\`\`json
 {
-  "executiveSummary": { "titolo": "Report Strategico in Breve", "paragrafo": "Sintesi di 2-3 frasi." },
-  "analisiQuantitativa": { "migliorMomentoPerPubblicare": "Giorno e ora.", "formatoVincente": "Tipo di post.", "piattaformaTop": "Piattaforma." },
-  "analisiTematica": { "pilastriDiContenuto": [ { "tema": "Argomento.", "performance": "Valutazione e dato." } ] },
-  "pianoDAzione": { "titolo": "Prossimi 3 Passi Strategici", "azioni": [ { "azione": "Consiglio specifico.", "motivazione": "Ragione basata sui dati.", "focus": "Obiettivo dell'azione." } ] }
+  "executiveSummary": {
+    "titolo": "Report Strategico in Breve",
+    "paragrafo": "Sintesi chiara e concisa (2-3 frasi) delle scoperte chiave e delle raccomandazioni generali."
+  },
+  "analisiQuantitativa": {
+    "migliorMomentoPerPubblicare": "Giorno e ora specifici con la performance media più alta.",
+    "formatoVincente": "Il tipo di contenuto (es. 'Reel', 'Carosello', 'Testo') che genera il miglior punteggio complessivo.",
+    "piattaformaTop": "La piattaforma con la performance media più elevata in base al punteggio complessivo.",
+    "trendPerformanceGenerali": "Un paragrafo che analizza i trend generali delle metriche chiave (views, likes, comments) su tutte le piattaforme o per tipo di contenuto, con esempi numerici se possibile."
+  },
+  "analisiTematica": {
+    "pilastriDiContenuto": [
+      {
+        "tema": "Argomento identificato.",
+        "performance": "Valutazione della performance con dati specifici (es. 'Il tema X ha generato un punteggio medio di Y, con picchi sul post 'Titolo Z').",
+        "suggerimentiSpecifici": ["Idea 1 per espandere o replicare il successo del tema.", "Idea 2 per espandere o replicare il successo del tema."]
+      }
+    ]
+  },
+  "analisiGanci": {
+    "gancioVincente": {
+      "postTitolo": "Titolo del post con il gancio più efficace.",
+      "gancioTesto": "Il testo esatto del gancio vincente.",
+      "percheFunziona": "Spiegazione concisa del motivo per cui questo gancio è stato efficace (es. crea curiosità, risolve un problema, è controverso)."
+    },
+    "gancioMenoEfficace": {
+      "postTitolo": "Titolo del post con il gancio meno efficace.",
+      "gancioTesto": "Il testo esatto del gancio meno efficace.",
+      "percheNonFunziona": "Spiegazione concisa del motivo per cui questo gancio non ha funzionato (es. troppo generico, non cattura l'attenzione)."
+    },
+    "consigliPerGanciEfficaci": ["Consiglio pratico 1 per creare ganci migliori.", "Consiglio pratico 2 per creare ganci migliori."]
+  },
+  "pianoDAzione": {
+    "titolo": "Prossimi 3 Passi Strategici",
+    "azioni": [
+      {
+        "azione": "Cosa fare (azione specifica e chiara).",
+        "motivazione": "Perché farla (basata sui dati e gli insight del report).",
+        "focus": "Su quale aspetto della strategia si concentra (es. Engagement, Reach, Conversione)."
+      }
+    ]
+  }
 }
 \`\`\`
 `;
