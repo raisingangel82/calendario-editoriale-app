@@ -106,9 +106,6 @@ export const stripeWebhook = onRequest({ region: "europe-west1" }, async (reques
 export const generateContentReport = onCall({ region: "europe-west1", timeoutSeconds: 300 }, async (request) => {
   logger.info("Inizio esecuzione di generateContentReport per utente:", request.auth?.uid);
   
-  //const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-  const vertex_ai = new VertexAI({ project: 'calendario-editoriale-so-bc85b', location: 'europe-west1' });
-const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.5-pro' });
   if (!request.auth) { 
     logger.warn("Tentativo di chiamata non autenticato.");
     throw new HttpsError("unauthenticated", "È necessario essere autenticati per usare questa funzione."); 
@@ -125,11 +122,15 @@ const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.5-pro' });
     throw new HttpsError("invalid-argument", "Obiettivo e target audience sono obbligatori.");
   }
 
-  //const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-  
-  const listaPiattaforme = [...new Set(posts.map((p: any) => p.piattaforma).filter(Boolean))];
+  try {
+    // Inizializzazione corretta con VertexAI per l'ambiente server
+    const vertex_ai = new VertexAI({ project: 'calendario-editoriale-so-bc85b', location: 'europe-west1' });
+    // Usiamo un modello stabile e potente
+    const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.5-pro' });
+    
+    const listaPiattaforme = [...new Set(posts.map((p: any) => p.piattaforma).filter(Boolean))];
 
-  const prompt = `
+    const prompt = `
 Sei 'Stratagem', un'intelligenza artificiale esperta in data analysis e strategia per social media.
 Analizza i dati forniti per generare un report JSON strutturato con un executive summary, analisi quantitative, analisi tematiche e un piano d'azione.
 
@@ -150,31 +151,30 @@ ${JSON.stringify(posts, null, 2)}
 }
 `;
 
-  try {
-    logger.info("Sto per chiamare l'API di Gemini...");
+    logger.info("Sto per chiamare l'API di Vertex AI...");
     const result = await model.generateContent(prompt);
-    //const responseText = result.response.text();
+
+    // Estrazione sicura della risposta
     if (!result.response.candidates?.[0]?.content?.parts?.[0]?.text) {
-  logger.error("Risposta AI non valida o vuota:", JSON.stringify(result.response));
-  throw new HttpsError("internal", "L'AI non ha generato una risposta di testo valida.");
-}
-const responseText = result.response.candidates[0].content.parts[0].text;
-    logger.info("Risposta ricevuta da Gemini. Provo a fare il parsing del JSON.");
+      logger.error("Risposta AI non valida o vuota:", JSON.stringify(result.response));
+      throw new HttpsError("internal", "L'AI non ha generato una risposta di testo valida.");
+    }
+    const responseText = result.response.candidates[0].content.parts[0].text;
+    logger.info("Risposta ricevuta. Provo a fare il parsing del JSON.");
 
     try {
         const jsonData = JSON.parse(responseText);
         logger.info("Parsing JSON riuscito. Invio la risposta al client.");
         return jsonData;
     } catch(parseError) {
-        logger.error("Errore nel parsing della risposta JSON da Gemini:", parseError, "Testo ricevuto:", responseText);
+        logger.error("Errore nel parsing della risposta JSON:", parseError, "Testo ricevuto:", responseText);
         throw new HttpsError("internal", "La risposta AI non era in un formato JSON valido.");
     }
   } catch (error) {
-    logger.error("Errore durante la chiamata all'API di Gemini:", error);
-    throw new HttpsError("internal", "Impossibile generare il report AI a causa di un errore del servizio Gemini.");
+    logger.error("Errore durante la chiamata all'API di Vertex AI:", error);
+    throw new HttpsError("internal", "Impossibile generare il report AI a causa di un errore del servizio AI.");
   }
 });
-
 // =======================================================================================
 // === 4. FUNZIONE NOTIFICHE PROGRAMMATE (Invariata)                                 ===
 // =======================================================================================
