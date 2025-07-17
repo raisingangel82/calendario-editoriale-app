@@ -128,7 +128,7 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
 
   try {
     const vertex_ai = new VertexAI({ project: 'calendario-editoriale-so-bc85b', location: 'europe-west1' });
-    const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.5-pro' });
+    const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     const listaPiattaforme = [...new Set(posts.map((p: any) => p.piattaforma).filter(Boolean))];
 
