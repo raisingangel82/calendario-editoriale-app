@@ -107,7 +107,7 @@ export const stripeWebhook = onRequest({ region: "europe-west1" }, async (reques
 // =======================================================================================
 // === 3. FUNZIONE GENERAZIONE REPORT AI (CON TIMEOUT, LOG E NUOVO PROMPT)             ===
 // =======================================================================================
-export const generateContentReport = onCall({ region: "europe-west1", timeoutSeconds: 300 }, async (request) => {
+export const generateContentReport = onCall({ region: "europe-west1", timeoutSeconds: 540 }, async (request) => {
   logger.info("Inizio esecuzione di generateContentReport per utente:", request.auth?.uid);
   
   if (!request.auth) { 
@@ -128,13 +128,75 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
 
   try {
     const vertex_ai = new VertexAI({ project: 'calendario-editoriale-so-bc85b', location: 'europe-west1' });
-    const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.0-flash' }); 
     
-    const listaPiattaforme = [...new Set(posts.map((p: any) => p.piattaforma).filter(Boolean))];
+    // --- INIZIO: Ottimizzazione dei dati dei post per ridurre il payload ---
+    // Filtra solo i campi essenziali per l'analisi AI e calcola il punteggio ponderato
+    const postsWithWeightedScore = posts.map((post: any) => {
+      const views = post.performance?.views || 0;
+      const likes = post.performance?.likes || 0;
+      const comments = post.performance?.comments || 0;
+      // Calcola il punteggio complessivo (es. views*1 + likes*2 + comments*3)
+      const punteggioComplessivo = (views * 1) + (likes * 2) + (comments * 3);
+
+      return {
+        id: post.id,
+        piattaforma: post.piattaforma,
+        tipoContenuto: post.tipoContenuto,
+        data: post.data, 
+        titolo: post.titolo,
+        descrizione: post.descrizione,
+        performance: { // Includi le metriche originali e il punteggio complessivo
+          views: views,
+          likes: likes,
+          comments: comments,
+          punteggioComplessivo: punteggioComplessivo
+        }
+      };
+    }).filter((post: any) => post.performance.punteggioComplessivo > 0); // Filtra i post senza performance significative
+
+    // Raggruppa i post per piattaforma
+    const postsByPlatform: { [key: string]: any[] } = {};
+    postsWithWeightedScore.forEach((post: any) => {
+        const platform = post.piattaforma || 'Sconosciuta';
+        if (!postsByPlatform[platform]) {
+            postsByPlatform[platform] = [];
+        }
+        postsByPlatform[platform].push(post);
+    });
+
+    let postsForAnalysis: any[] = [];
+    const maxPostsPerCategory = 10; // Limite per top e worst per piattaforma
+
+    for (const platform in postsByPlatform) {
+        if (postsByPlatform.hasOwnProperty(platform)) {
+            const platformPosts = postsByPlatform[platform];
+
+            // Ordina i post di questa piattaforma per il punteggio complessivo (dal migliore al peggiore)
+            const sortedPlatformPosts = [...platformPosts].sort((a, b) => {
+                return b.performance.punteggioComplessivo - a.performance.punteggioComplessivo; 
+            });
+
+            // Seleziona i migliori N e i peggiori N post per questa piattaforma
+            const topN = sortedPlatformPosts.slice(0, maxPostsPerCategory);
+            const worstN = sortedPlatformPosts.slice(Math.max(0, sortedPlatformPosts.length - maxPostsPerCategory));
+
+            // Combina e aggiungi all'array finale, evitando duplicati
+            postsForAnalysis.push(...Array.from(new Set([...topN, ...worstN])));
+        }
+    }
+
+    // Rimuovi duplicati finali se presenti (es. un post è sia top che worst in piattaforme diverse, improbabile ma per sicurezza)
+    const uniquePostsForAnalysis = Array.from(new Map(postsForAnalysis.map(post => [post.id, post])).values());
+
+    logger.info(`Analisi basata su ${uniquePostsForAnalysis.length} post (Top ${maxPostsPerCategory} e peggiori ${maxPostsPerCategory} per OGNI piattaforma, valutati con punteggio ponderato).`);
+
+    const listaPiattaforme = [...new Set(uniquePostsForAnalysis.map((p: any) => p.piattaforma).filter(Boolean))];
 
     const prompt = `
 Sei 'Stratagem', un'intelligenza artificiale esperta in data analysis e strategia per social media.
 Analizza i dati forniti per generare un report JSON strutturato con un executive summary, analisi quantitative, analisi tematiche e un piano d'azione.
+La valutazione delle performance dei post è basata su un punteggio complessivo che considera visualizzazioni, mi piace e commenti.
 Mantieni le risposte concise e dirette, evitando prolissità.
 
 **INPUT CONTESTUALE:**
@@ -142,12 +204,13 @@ Mantieni le risposte concise e dirette, evitando prolissità.
 - **Obiettivo Principale dell'Utente:** "${goal}"
 - **Target Audience Descritto dall'Utente:** "${audience}"
 
-**DATI DEI POST (JSON):**
-${JSON.stringify(posts, null, 2)}
+**DATI DEI POST SELEZIONATI (JSON - Top ${maxPostsPerCategory} e peggiori ${maxPostsPerCategory} per OGNI piattaforma, basati su punteggio ponderato):**
+${JSON.stringify(uniquePostsForAnalysis, null, 2)}
 
 **RICHIESTA DI OUTPUT (Formato JSON Obbligatorio, racchiuso in un blocco di codice markdown):**
 - L'executive summary deve essere di massimo 2-3 frasi.
-- L'analisi tematica deve identificare i TOP 3-5 pilastri di contenuto più rilevanti/performanti.
+- L'analisi quantitativa deve fare riferimento al "punteggio complessivo" quando parla di performance.
+- L'analisi tematica deve identificare i TOP 3-5 pilastri di contenuto più rilevanti/performanti, basandosi sul punteggio complessivo.
 - Il piano d'azione deve contenere 3 azioni specifiche.
 \`\`\`json
 {
@@ -158,6 +221,7 @@ ${JSON.stringify(posts, null, 2)}
 }
 \`\`\`
 `;
+    // --- FINE: Ottimizzazione dei dati dei post ---
 
     logger.info("Sto per chiamare l'API di Vertex AI...");
     const result = await model.generateContent(prompt);
@@ -169,23 +233,16 @@ ${JSON.stringify(posts, null, 2)}
     let responseText = result.response.candidates[0].content.parts[0].text;
     logger.info("Risposta AI RAW ricevuta (primi 500 caratteri):", responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
 
-    // --- NUOVA LOGICA DI ESTRAZIONE JSON PIÙ ROBUSTA ---
-    // Tenta di estrarre il JSON da un blocco di codice markdown, con spazi/newline flessibili
-    // e rendendo la cattura più generica per evitare problemi con caratteri speciali o troncamenti.
-    const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/); // Regex più flessibile con \s*
+    const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
     
     if (jsonMatch && jsonMatch[1]) {
       responseText = jsonMatch[1];
       logger.info("JSON estratto da blocco markdown. Tentativo di parsing.");
     } else {
       logger.warn("Nessun blocco JSON markdown trovato o regex non corrispondente. Tentativo di parsing diretto del testo completo.");
-      // Se il blocco markdown non viene trovato, potremmo avere un JSON diretto o un errore.
-      // Aggiungiamo un controllo per rimuovere eventuali caratteri non JSON validi all'inizio/fine
-      // che potrebbero essere stati aggiunti dal modello (es. "```json" senza newline).
       responseText = responseText.replace(/^\s*```json\s*/, '').replace(/\s*```\s*$/, '');
       logger.warn("Tentato di pulire il testo per il parsing diretto. Testo dopo pulizia (primi 500 caratteri):", responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
     }
-    // --- FINE NUOVA LOGICA DI ESTRAZIONE JSON ---
 
     try {
         const jsonData = JSON.parse(responseText);
