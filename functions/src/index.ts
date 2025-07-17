@@ -128,7 +128,7 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
 
   try {
     const vertex_ai = new VertexAI({ project: 'calendario-editoriale-so-bc85b', location: 'europe-west1' });
-    const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.0-flash' }); 
+    const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.5-pro' }); 
     
     // --- INIZIO: Ottimizzazione dei dati dei post per ridurre il payload ---
     // Filtra solo i campi essenziali per l'analisi AI e calcola il punteggio ponderato
