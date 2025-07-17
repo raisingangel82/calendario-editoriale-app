@@ -3,6 +3,8 @@ import { Wand, BrainCircuit, AlertTriangle } from 'lucide-react';
 
 // Importa le funzioni necessarie dall'SDK di Firebase
 import { getFunctions, httpsCallable } from "firebase/functions";
+// Importa l'istanza dell'app Firebase per inizializzare le funzioni con la regione corretta
+import { app } from '../firebase'; // Assicurati che 'app' sia esportato da firebase.ts
 
 import type { Post } from '../types';
 import { StatCard } from './StatCard';
@@ -62,8 +64,10 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
     setError(null);
 
     try {
-      // 1. Ottieni un riferimento al servizio Firebase Functions
-      const functions = getFunctions();
+      // --- INIZIO BLOCCO MODIFICATO ---
+      // 1. Ottieni un riferimento al servizio Firebase Functions, specificando la regione
+      // Assicurati che 'app' sia l'istanza della tua app Firebase inizializzata
+      const functions = getFunctions(app, 'europe-west1'); // SPECIFICA LA REGIONE QUI
       // 2. Crea un riferimento alla tua funzione specifica per nome
       const generateContentReportCallable = httpsCallable(functions, 'generateContentReport');
       
@@ -78,14 +82,13 @@ export const AnalisiAIView: React.FC<AnalisiAIViewProps> = ({ posts }) => {
       
       // 4. Il risultato è contenuto nella proprietà 'data' dell'oggetto di risposta
       const data = result.data as AIReport;
+      // --- FINE BLOCCO MODIFICATO ---
       
       setReport(data);
       setStatoAnalisi('success');
 
     } catch (err: any) {
       console.error("Errore durante la chiamata alla funzione Firebase:", err);
-      // L'oggetto di errore dell'SDK Firebase ha una proprietà 'message'
-      // o 'details' per gli HttpsError.
       let errorMessage = "Si è verificato un errore sconosciuto durante la generazione del report.";
       if (err.message) {
         errorMessage = err.message;
