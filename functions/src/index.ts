@@ -8,8 +8,7 @@ import { defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import Stripe from "stripe";
 import { VertexAI } from "@google-cloud/vertexai";
-// Importa il modulo 'cors' con un'importazione predefinita
-import cors from 'cors'; // MODIFICA QUI: da 'import * as cors' a 'import cors'
+import cors from 'cors';
 
 initializeApp();
 
@@ -19,10 +18,6 @@ const stripeWebhookSecret = defineString("STRIPE_WEBHOOK_SECRET");
 const db = getFirestore();
 const messaging = getMessaging();
 
-// Inizializza il middleware CORS
-// Permetti tutte le origini per semplicità in fase di sviluppo.
-// In produzione, considera di specificare la tua origine esatta:
-// const corsHandler = cors({ origin: 'https://calendario-editoriale-app.vercel.app' });
 const corsHandler = cors({ origin: true });
 
 // =======================================================================================
@@ -64,7 +59,6 @@ export const createStripeCheckout = onCall({ region: "europe-west1" }, async (re
 // === 2. WEBHOOK DI STRIPE PER AGGIORNARE LO STATO UTENTE                             ===
 // =======================================================================================
 export const stripeWebhook = onRequest({ region: "europe-west1" }, async (request: Request, response: Response) => {
-  // Applica il middleware CORS alla richiesta webhook
   corsHandler(request, response, async () => {
     const stripe = new Stripe(stripeSecretKey.value(), { apiVersion: "2025-06-30.basil" });
     const sig = request.headers["stripe-signature"] as string;
@@ -133,9 +127,7 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
   }
 
   try {
-    // Inizializzazione corretta con VertexAI per l'ambiente server
     const vertex_ai = new VertexAI({ project: 'calendario-editoriale-so-bc85b', location: 'europe-west1' });
-    // Usiamo un modello stabile e potente
     const model = vertex_ai.getGenerativeModel({ model: 'gemini-2.5-pro' });
     
     const listaPiattaforme = [...new Set(posts.map((p: any) => p.piattaforma).filter(Boolean))];
@@ -143,6 +135,7 @@ export const generateContentReport = onCall({ region: "europe-west1", timeoutSec
     const prompt = `
 Sei 'Stratagem', un'intelligenza artificiale esperta in data analysis e strategia per social media.
 Analizza i dati forniti per generare un report JSON strutturato con un executive summary, analisi quantitative, analisi tematiche e un piano d'azione.
+Mantieni le risposte concise e dirette, evitando prolissità.
 
 **INPUT CONTESTUALE:**
 - **Piattaforme Analizzate:** ${JSON.stringify(listaPiattaforme)}
@@ -152,37 +145,58 @@ Analizza i dati forniti per generare un report JSON strutturato con un executive
 **DATI DEI POST (JSON):**
 ${JSON.stringify(posts, null, 2)}
 
-**RICHIESTA DI OUTPUT (Formato JSON Obbligatorio):**
+**RICHIESTA DI OUTPUT (Formato JSON Obbligatorio, racchiuso in un blocco di codice markdown):**
+- L'executive summary deve essere di massimo 2-3 frasi.
+- L'analisi tematica deve identificare i TOP 3-5 pilastri di contenuto più rilevanti/performanti.
+- Il piano d'azione deve contenere 3 azioni specifiche.
+\`\`\`json
 {
-  "executiveSummary": { "titolo": "Report Strategico in Breve", "paragrafo": "Sintesi di 1-2 frasi." },
+  "executiveSummary": { "titolo": "Report Strategico in Breve", "paragrafo": "Sintesi di 2-3 frasi." },
   "analisiQuantitativa": { "migliorMomentoPerPubblicare": "Giorno e ora.", "formatoVincente": "Tipo di post.", "piattaformaTop": "Piattaforma." },
   "analisiTematica": { "pilastriDiContenuto": [ { "tema": "Argomento.", "performance": "Valutazione e dato." } ] },
   "pianoDAzione": { "titolo": "Prossimi 3 Passi Strategici", "azioni": [ { "azione": "Consiglio specifico.", "motivazione": "Ragione basata sui dati.", "focus": "Obiettivo dell'azione." } ] }
 }
+\`\`\`
 `;
 
     logger.info("Sto per chiamare l'API di Vertex AI...");
     const result = await model.generateContent(prompt);
 
-    // Estrazione sicura della risposta
     if (!result.response.candidates?.[0]?.content?.parts?.[0]?.text) {
       logger.error("Risposta AI non valida o vuota:", JSON.stringify(result.response));
       throw new HttpsError("internal", "L'AI non ha generato una risposta di testo valida.");
     }
-    const responseText = result.response.candidates[0].content.parts[0].text;
-    logger.info("Risposta ricevuta. Provo a fare il parsing del JSON.");
+    let responseText = result.response.candidates[0].content.parts[0].text;
+    logger.info("Risposta AI RAW ricevuta (primi 500 caratteri):", responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
+
+    // --- NUOVA LOGICA DI ESTRAZIONE JSON PIÙ ROBUSTA ---
+    // Tenta di estrarre il JSON da un blocco di codice markdown, con spazi/newline flessibili
+    // e rendendo la cattura più generica per evitare problemi con caratteri speciali o troncamenti.
+    const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/); // Regex più flessibile con \s*
+    
+    if (jsonMatch && jsonMatch[1]) {
+      responseText = jsonMatch[1];
+      logger.info("JSON estratto da blocco markdown. Tentativo di parsing.");
+    } else {
+      logger.warn("Nessun blocco JSON markdown trovato o regex non corrispondente. Tentativo di parsing diretto del testo completo.");
+      // Se il blocco markdown non viene trovato, potremmo avere un JSON diretto o un errore.
+      // Aggiungiamo un controllo per rimuovere eventuali caratteri non JSON validi all'inizio/fine
+      // che potrebbero essere stati aggiunti dal modello (es. "```json" senza newline).
+      responseText = responseText.replace(/^\s*```json\s*/, '').replace(/\s*```\s*$/, '');
+      logger.warn("Tentato di pulire il testo per il parsing diretto. Testo dopo pulizia (primi 500 caratteri):", responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
+    }
+    // --- FINE NUOVA LOGICA DI ESTRAZIONE JSON ---
 
     try {
         const jsonData = JSON.parse(responseText);
         logger.info("Parsing JSON riuscito. Invio la risposta al client.");
         return jsonData;
     } catch(parseError) {
-        logger.error("Errore nel parsing della risposta JSON:", parseError, "Testo ricevuto:", responseText);
+        logger.error("Errore nel parsing della risposta JSON:", parseError, "Testo ricevuto (dopo estrazione/pulizia, potrebbe essere troncato):", responseText.substring(0, 500));
         throw new HttpsError("internal", "La risposta AI non era in un formato JSON valido.");
     }
   } catch (error) {
     logger.error("Errore durante la chiamata all'API di Vertex AI:", error);
-    // Cattura e rilancia HttpsError se già presente, altrimenti crea un nuovo HttpsError
     if (error instanceof HttpsError) {
       throw error;
     }
