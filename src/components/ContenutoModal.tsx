@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { format as formatDateFns, parseISO } from 'date-fns';
 import { Trash2, Copy, Check, ArrowRight, Save, Plus, ArrowLeft, ExternalLink, Cloud, Send } from 'lucide-react';
@@ -56,10 +56,9 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     const mediaTypes = ["Immagine/Carosello", "Reel", "Booktrailer", "Podcast", "Vlog"];
     return mediaTypes.includes(tipoContenuto);
   }, [tipoContenuto]);
-
-  // ▼▼▼ MODIFICA 1: useEffect corretto per evitare reset dello stato ▼▼▼
+  
   useEffect(() => {
-    if (post) { // Se stiamo modificando un post esistente
+    if (post) {
         setProjectId(post.projectId || (progetti.length > 0 ? progetti[0].id : ''));
         setPiattaforma(post.piattaforma || (availablePlatforms.length > 0 ? availablePlatforms[0].name : ''));
         setTipoContenuto(post.tipoContenuto || '');
@@ -70,7 +69,7 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
         setIsProdotto(post.statoProdotto || false);
         setIsPubblicato(post.statoPubblicato || false);
         setIsMontato(post.statoMontato || false);
-    } else { // Se stiamo creando un nuovo post
+    } else {
         setProjectId(progetti.length > 0 ? progetti[0].id : '');
         setPiattaforma(availablePlatforms.length > 0 ? availablePlatforms[0].name : '');
         setTipoContenuto('');
@@ -82,8 +81,8 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
         setIsPubblicato(false);
         setIsMontato(false);
     }
-    setCurrentPage(0); // Torna sempre alla prima pagina
-  }, [post]); // L'unica dipendenza ora è 'post'
+    setCurrentPage(0);
+  }, [post]);
   
   useEffect(() => {
     // @ts-ignore
@@ -125,11 +124,12 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     }
   };
 
-  // ▼▼▼ MODIFICA 2: Funzione di salvataggio corretta senza il controllo che bloccava l'esecuzione ▼▼▼
+  // ▼▼▼ MODIFICA CHIAVE ▼▼▼
+  // Ora questa funzione passa la data come stringa, senza convertirla.
   const handleSaveChanges = () => {
     const dataToSave: any = {
       projectId, piattaforma, tipoContenuto, descrizione, primoCommento, urlMedia,
-      data: data ? parseISO(data) : new Date(),
+      data, // Passiamo la stringa della data così com'è
       statoProdotto: isProdotto,
       statoPubblicato: isPubblicato,
       statoMontato: isMontato,

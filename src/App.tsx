@@ -4,7 +4,7 @@ import { db, auth } from './firebase';
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { Plus, Download, UploadCloud, BarChart3, Wand, LockKeyhole } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { DndContext, useSensor, useSensors, MouseSensor, TouchSensor, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -30,7 +30,7 @@ import { UpgradePage } from './components/UpgradePage';
 import { SuccessPage } from './components/SuccessPage';
 import type { Post, Progetto, Categoria, PlatformData } from './types';
 
-// Funzioni helper (invariate)
+// Helper functions
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipo = (tipoContenuto || "").toLowerCase();
     if (tipo === 'testo breve con immagine') return 'Testo';
@@ -124,7 +124,7 @@ function MainLayout() {
                         return { ...post, performance: performanceSnap.data() };
                     }
                 } catch (error) {
-                    console.error("Errore nel recuperare le performance per il post:", post.id, error);
+                    console.error("Error fetching performance for post:", post.id, error);
                 }
                 return post;
             })
@@ -207,16 +207,21 @@ function MainLayout() {
     setIsAnalyticsModalOpen(false);
   };
 
-  // ▼▼▼ MODIFICA: Funzione handleAddPost riscritta per maggiore chiarezza e robustezza ▼▼▼
+  // Robust function to handle adding a new post
   const handleAddPost = async (formData: any) => {
     if (user) {
-        // Separiamo la data (che è un oggetto Date) dal resto dei dati
-        const { data, ...rest } = formData;
+        const { data, ...rest } = formData; // 'data' here is a string from the input
         
-        // Creiamo un nuovo oggetto pulito per il salvataggio
+        // Safely parse the date string. If it's empty or invalid, use the current date.
+        let dateObject = data ? parseISO(data) : new Date();
+        if (isNaN(dateObject.getTime())) {
+            console.error("Invalid date format received, falling back to current date.");
+            dateObject = new Date();
+        }
+
         const dataToSave = {
             ...rest,
-            data: Timestamp.fromDate(data as Date), // Convertiamo la data in Timestamp
+            data: Timestamp.fromDate(dateObject), // Convert the valid Date object to a Firestore Timestamp
             userId: user.uid
         };
 
@@ -225,15 +230,21 @@ function MainLayout() {
     handleCloseModals();
   };
 
-  // ▼▼▼ MODIFICA: Funzione handleSavePost riscritta per maggiore chiarezza e robustezza ▼▼▼
+  // Robust function to handle saving an existing post
   const handleSavePost = async (formData: any) => {
     if (selectedPost && user) {
-        // Stesso approccio di handleAddPost
-        const { data, ...rest } = formData;
-        
+        const { data, ...rest } = formData; // 'data' here is a string from the input
+
+        // Safely parse the date string, similar to handleAddPost
+        let dateObject = data ? parseISO(data) : new Date();
+        if (isNaN(dateObject.getTime())) {
+            console.error("Invalid date format received, falling back to current date.");
+            dateObject = new Date();
+        }
+
         const dataToUpdate = {
             ...rest,
-            data: Timestamp.fromDate(data as Date)
+            data: Timestamp.fromDate(dateObject) // Convert to Firestore Timestamp
         };
         
         await updateDoc(doc(db, 'contenuti', selectedPost.id), dataToUpdate);
@@ -275,7 +286,6 @@ function MainLayout() {
 
   const handleDuplicatePost = async (post: Post) => {
     if (user && isPro) {
-      // Questa funzione è generalmente corretta, ma assicurati che i tuoi oggetti 'post' abbiano sempre tutti i campi definiti
       const { id, performance, ...data } = post;
       await addDoc(collection(db, 'contenuti'), { ...data, userId: user.uid, statoProdotto: false, statoPubblicato: false });
       handleCloseModals();
@@ -315,7 +325,7 @@ function MainLayout() {
     link.remove();
   };
 
-  const handleImport = async () => { /* Logica da implementare */ };
+  const handleImport = async () => { /* Logic to be implemented */ };
   
   const handleAddProject = async (data: any) => { if(user) await addDoc(collection(db, 'progetti'), { ...data, userId: user.uid }); };
   const handleUpdateProject = async (id: string, data: any) => await updateDoc(doc(db, "progetti", id), data);
@@ -333,7 +343,7 @@ function MainLayout() {
 
   const handleAnalyticsImport = (parsedData: any[], platformName: string, strategy: 'update_only' | 'create_new') => {
     if (!user) {
-        console.error("Utente non autenticato. Impossibile importare.");
+        console.error("User not authenticated. Import failed.");
         return Promise.resolve();
     }
     
@@ -351,21 +361,21 @@ function MainLayout() {
                       return post;
                   })
               );
-              alert(`${updated} post aggiornati con successo!`);
+              alert(`${updated} posts updated successfully!`);
           } else {
-              alert("Nessun post corrispondente trovato da aggiornare.");
+              alert("No matching posts found to update.");
           }
       })
       .catch(error => {
-          console.error("Errore durante il processo di importazione:", error);
-          alert("Si è verificato un errore durante l'importazione.");
+          console.error("Error during import process:", error);
+          alert("An error occurred during import.");
       });
   };
   
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
-        console.log(`Elemento ${active.id} spostato su ${over.id}. Implementare la logica di salvataggio qui.`);
+        console.log(`Item ${active.id} was dropped over ${over.id}. Implement save logic here.`);
     }
   };
 
