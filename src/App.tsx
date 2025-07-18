@@ -55,7 +55,6 @@ const normalizeDateToMillis = (date: any): number => {
 };
 
 function MainLayout() {
-  // ▼▼▼ MODIFICA: Otteniamo l'utente e lo stato Pro direttamente dal context ▼▼▼
   const { user } = useAuth();
   const isPro = user?.plan === 'pro' || user?.plan === 'trialing';
   
@@ -94,9 +93,6 @@ function MainLayout() {
     }
     
     setLoadingData(true);
-
-    // ▼▼▼ MODIFICA: Tutta la logica per controllare gli abbonamenti è stata rimossa da qui.
-    // Ora è gestita centralmente da AuthContext.tsx
 
     const userPrefsRef = doc(db, 'userPreferences', user.uid);
     const unsubUserPrefs = onSnapshot(userPrefsRef, (docSnap) => {
@@ -158,7 +154,6 @@ function MainLayout() {
                 setActionConfig({ icon: BarChart3, onClick: () => setStatsActiveView('performance'), label: 'Vai a Performance' });
                 break;
             case 'performance':
-                // ▼▼▼ MODIFICA: Usiamo la nuova costante `isPro` ▼▼▼
                 if (isPro) {
                   setActionConfig({ icon: Wand, onClick: () => setStatsActiveView('analisiAI'), label: 'Genera Analisi AI (Pro)' });
                 } else {
@@ -190,7 +185,6 @@ function MainLayout() {
               break;
       }
     }
-    // ▼▼▼ MODIFICA: Aggiorniamo la dipendenza da `isProUser` a `isPro` ▼▼▼
   }, [location.pathname, statsActiveView, isPro, navigate]);
   
   const handleSetWorkingDays = async (days: number[]) => {
@@ -213,14 +207,40 @@ function MainLayout() {
     setIsAnalyticsModalOpen(false);
   };
 
-  const handleAddPost = async (data: any) => {
-    if (user) await addDoc(collection(db, 'contenuti'), { ...data, userId: user.uid, data: Timestamp.fromDate(data.data as Date) });
+  // ▼▼▼ MODIFICA: Funzione handleAddPost riscritta per maggiore chiarezza e robustezza ▼▼▼
+  const handleAddPost = async (formData: any) => {
+    if (user) {
+        // Separiamo la data (che è un oggetto Date) dal resto dei dati
+        const { data, ...rest } = formData;
+        
+        // Creiamo un nuovo oggetto pulito per il salvataggio
+        const dataToSave = {
+            ...rest,
+            data: Timestamp.fromDate(data as Date), // Convertiamo la data in Timestamp
+            userId: user.uid
+        };
+
+        await addDoc(collection(db, 'contenuti'), dataToSave);
+    }
     handleCloseModals();
   };
-  const handleSavePost = async (data: any) => {
-    if (selectedPost) await updateDoc(doc(db, 'contenuti', selectedPost.id), { ...data, data: Timestamp.fromDate(data.data as Date) });
+
+  // ▼▼▼ MODIFICA: Funzione handleSavePost riscritta per maggiore chiarezza e robustezza ▼▼▼
+  const handleSavePost = async (formData: any) => {
+    if (selectedPost && user) {
+        // Stesso approccio di handleAddPost
+        const { data, ...rest } = formData;
+        
+        const dataToUpdate = {
+            ...rest,
+            data: Timestamp.fromDate(data as Date)
+        };
+        
+        await updateDoc(doc(db, 'contenuti', selectedPost.id), dataToUpdate);
+    }
     handleCloseModals();
   };
+  
   const handleDeletePost = async (id: string) => {
     await deleteDoc(doc(db, 'contenuti', id));
     await deleteDoc(doc(db, 'performanceMetrics', id));
@@ -254,8 +274,8 @@ function MainLayout() {
   };
 
   const handleDuplicatePost = async (post: Post) => {
-    // ▼▼▼ MODIFICA: Usiamo la nuova costante `isPro` ▼▼▼
     if (user && isPro) {
+      // Questa funzione è generalmente corretta, ma assicurati che i tuoi oggetti 'post' abbiano sempre tutti i campi definiti
       const { id, performance, ...data } = post;
       await addDoc(collection(db, 'contenuti'), { ...data, userId: user.uid, statoProdotto: false, statoPubblicato: false });
       handleCloseModals();
@@ -285,7 +305,6 @@ function MainLayout() {
   };
   
   const handleExportDatabase = () => {
-    // ▼▼▼ MODIFICA: Usiamo la nuova costante `isPro` ▼▼▼
     if(!isPro) return;
     const dataToExport = { posts, progetti, platforms };
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(dataToExport, null, 2))}`;
@@ -303,7 +322,6 @@ function MainLayout() {
   const handleDeleteProject = async (id: string) => await deleteDoc(doc(db, 'progetti', id));
 
   const handleAddPlatform = async (data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => {
-    // ▼▼▼ MODIFICA: Usiamo la nuova costante `isPro` ▼▼▼
     if(user && isPro) await addDoc(collection(db, 'platforms'), { ...data, userId: user.uid, iconName: 'Sparkles' });
   };
   const handleUpdatePlatform = async (id: string, data: Omit<PlatformData, 'id' | 'icon' | 'proFeature' | 'iconName'>) => {
@@ -383,7 +401,6 @@ function MainLayout() {
       
       {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModals} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
       {isImportModalOpen && (<ImportModal onClose={handleCloseModals} onImport={handleImport} />)}
-      {/* ▼▼▼ MODIFICA: Passiamo 'user' dal context invece del vecchio 'fullUser' ▼▼▼ */}
       {isProjectModalOpen && ( <ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} user={user} onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} /> )}
       <ExportModal isOpen={isExportModalOpen} onClose={handleCloseModals} onExport={handleExportFromTodo} maxCount={posts.filter(p => !p.statoProdotto).length} />
       <AnalyticsImportModal isOpen={isAnalyticsModalOpen} onClose={handleCloseModals} platforms={platforms} onAnalyticsImport={handleAnalyticsImport} />
