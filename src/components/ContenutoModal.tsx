@@ -48,8 +48,6 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
   const [isPubblicato, setIsPubblicato] = useState(false);
   const [isMontato, setIsMontato] = useState(false);
 
-  const prevPostIdRef = useRef<string | undefined>();
-
   const selectedPlatform = useMemo(() => {
     return availablePlatforms.find(p => p.name === piattaforma);
   }, [piattaforma, availablePlatforms]);
@@ -59,30 +57,34 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     return mediaTypes.includes(tipoContenuto);
   }, [tipoContenuto]);
 
+  // ▼▼▼ MODIFICA 1: useEffect corretto per evitare reset dello stato ▼▼▼
   useEffect(() => {
-    if (post?.id !== prevPostIdRef.current) {
-      if (post) {
-          setProjectId(post.projectId || (progetti.length > 0 ? progetti[0].id : ''));
-          setPiattaforma(post.piattaforma || (availablePlatforms.length > 0 ? availablePlatforms[0].name : ''));
-          setTipoContenuto(post.tipoContenuto || '');
-          setDescrizione(post.descrizione || '');
-          setPrimoCommento(post.primoCommento || '');
-          setUrlMedia(post.urlMedia || '');
-          setData(post.data ? formatDateFns(post.data.toDate(), "yyyy-MM-dd'T'HH:mm") : "");
-          setIsProdotto(post.statoProdotto || false);
-          setIsPubblicato(post.statoPubblicato || false);
-          setIsMontato(post.statoMontato || false);
-      } else {
-          setProjectId(progetti.length > 0 ? progetti[0].id : '');
-          setPiattaforma(availablePlatforms.length > 0 ? availablePlatforms[0].name : '');
-          setTipoContenuto(''); setDescrizione(''); setPrimoCommento(''); setUrlMedia(''); setData(''); 
-          setIsProdotto(false); setIsPubblicato(false); setIsMontato(false);
-      }
-      setCurrentPage(0);
-      prevPostIdRef.current = post?.id;
+    if (post) { // Se stiamo modificando un post esistente
+        setProjectId(post.projectId || (progetti.length > 0 ? progetti[0].id : ''));
+        setPiattaforma(post.piattaforma || (availablePlatforms.length > 0 ? availablePlatforms[0].name : ''));
+        setTipoContenuto(post.tipoContenuto || '');
+        setDescrizione(post.descrizione || '');
+        setPrimoCommento(post.primoCommento || '');
+        setUrlMedia(post.urlMedia || '');
+        setData(post.data ? formatDateFns(post.data.toDate(), "yyyy-MM-dd'T'HH:mm") : "");
+        setIsProdotto(post.statoProdotto || false);
+        setIsPubblicato(post.statoPubblicato || false);
+        setIsMontato(post.statoMontato || false);
+    } else { // Se stiamo creando un nuovo post
+        setProjectId(progetti.length > 0 ? progetti[0].id : '');
+        setPiattaforma(availablePlatforms.length > 0 ? availablePlatforms[0].name : '');
+        setTipoContenuto('');
+        setDescrizione('');
+        setPrimoCommento('');
+        setUrlMedia('');
+        setData(''); 
+        setIsProdotto(false);
+        setIsPubblicato(false);
+        setIsMontato(false);
     }
-  }, [post, progetti, availablePlatforms]);
-
+    setCurrentPage(0); // Torna sempre alla prima pagina
+  }, [post]); // L'unica dipendenza ora è 'post'
+  
   useEffect(() => {
     // @ts-ignore
     if (user?.plan === 'pro') {
@@ -123,11 +125,8 @@ export const ContenutoModal: React.FC<ContenutoModalProps> = ({ post, progetti, 
     }
   };
 
+  // ▼▼▼ MODIFICA 2: Funzione di salvataggio corretta senza il controllo che bloccava l'esecuzione ▼▼▼
   const handleSaveChanges = () => {
-    if (!data && !isEditMode) {
-      console.error("Per favore, inserisci una data per il nuovo post.");
-      return;
-    }
     const dataToSave: any = {
       projectId, piattaforma, tipoContenuto, descrizione, primoCommento, urlMedia,
       data: data ? parseISO(data) : new Date(),
