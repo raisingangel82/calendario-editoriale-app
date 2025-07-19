@@ -77,6 +77,32 @@ function MainLayout() {
   const [statsActiveView, setStatsActiveView] = useState<'produzione' | 'performance' | 'analisiAI'>('produzione');
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
 
+  // --- BLOCCO DI CODICE PER IL TEST DIAGNOSTICO ---
+  useEffect(() => {
+    if (user) {
+      const testPerformanceFetch = async () => {
+        // ID del documento da testare
+        const TEST_ID = '0entGA5mTD9XoBsfovh6'; 
+        console.log(`--- INIZIO TEST SPECIFICO SUL DOCUMENTO ${TEST_ID} ---`);
+        
+        const performanceDocRef = doc(db, 'performanceMetrics', TEST_ID);
+        try {
+          const performanceSnap = await getDoc(performanceDocRef);
+          if (performanceSnap.exists()) {
+            console.log('✅ TEST RIUSCITO: Dati letti con successo:', performanceSnap.data());
+          } else {
+            console.warn('⚠️ TEST AVVIATO: Il documento di metriche non esiste per questo ID.');
+          }
+        } catch (error) {
+          console.error('❌ TEST FALLITO: Errore di permessi durante la lettura del singolo documento.', error);
+        }
+      };
+      
+      testPerformanceFetch();
+    }
+  }, [user]); // Questo test si attiva solo una volta al login
+  // --- FINE BLOCCO DI TEST ---
+
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
@@ -115,6 +141,7 @@ function MainLayout() {
     const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
     const unsubPosts = onSnapshot(qPosts, async (snapshot) => {
         const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[];
+        
         const postsConPerformance = await Promise.all(
             postsData.map(async (post) => {
                 const performanceDocRef = doc(db, 'performanceMetrics', post.id);
@@ -130,6 +157,9 @@ function MainLayout() {
             })
         );
         setPosts(postsConPerformance);
+        setLoadingData(false);
+    }, (error) => {
+        console.error("Errore nel listener di 'contenuti':", error);
         setLoadingData(false);
     });
     
@@ -207,46 +237,36 @@ function MainLayout() {
     setIsAnalyticsModalOpen(false);
   };
 
-  // Robust function to handle adding a new post
   const handleAddPost = async (formData: any) => {
     if (user) {
-        const { data, ...rest } = formData; // 'data' here is a string from the input
-        
-        // Safely parse the date string. If it's empty or invalid, use the current date.
+        const { data, ...rest } = formData;
         let dateObject = data ? parseISO(data) : new Date();
         if (isNaN(dateObject.getTime())) {
             console.error("Invalid date format received, falling back to current date.");
             dateObject = new Date();
         }
-
         const dataToSave = {
             ...rest,
-            data: Timestamp.fromDate(dateObject), // Convert the valid Date object to a Firestore Timestamp
+            data: Timestamp.fromDate(dateObject),
             userId: user.uid
         };
-
         await addDoc(collection(db, 'contenuti'), dataToSave);
     }
     handleCloseModals();
   };
 
-  // Robust function to handle saving an existing post
   const handleSavePost = async (formData: any) => {
     if (selectedPost && user) {
-        const { data, ...rest } = formData; // 'data' here is a string from the input
-
-        // Safely parse the date string, similar to handleAddPost
+        const { data, ...rest } = formData;
         let dateObject = data ? parseISO(data) : new Date();
         if (isNaN(dateObject.getTime())) {
             console.error("Invalid date format received, falling back to current date.");
             dateObject = new Date();
         }
-
         const dataToUpdate = {
             ...rest,
-            data: Timestamp.fromDate(dateObject) // Convert to Firestore Timestamp
+            data: Timestamp.fromDate(dateObject)
         };
-        
         await updateDoc(doc(db, 'contenuti', selectedPost.id), dataToUpdate);
     }
     handleCloseModals();
