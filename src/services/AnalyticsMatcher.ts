@@ -4,7 +4,7 @@ import { isSameDay, parse, startOfDay } from 'date-fns';
 import { it, enUS } from 'date-fns/locale';
 import type { Post } from '../types';
 
-// Mappatura (invariata)
+// Mappatura delle colonne CSV per ogni piattaforma
 const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'youtube': { date: 'Ora pubblicazione video', views: 'Visualizzazioni', title: 'Titolo video', description: 'Titolo video' },
     'instagram': { date: 'Orario di pubblicazione', views: 'Copertura', likes: 'Mi piace', comments: 'Commenti', description: 'Descrizione', postType: 'Tipo di post' },
@@ -12,13 +12,14 @@ const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'tiktok': { date: 'post time', views: 'Total views', likes: 'Total likes', comments: 'Total comments', shares: 'Total shares', description: 'Video title' }
 };
 
-// Funzioni helper (invariate)
+// Funzione helper per estrarre un valore da un record
 const getValueFromRecord = (record: DocumentData, key: string | undefined): string | null => {
     if (!key) return null;
     const recordKey = Object.keys(record).find(k => k.trim().toLowerCase() === key.toLowerCase());
     return recordKey ? record[recordKey] : null;
 };
 
+// Funzione helper per analizzare le date
 const parseDate = (dateStr: string | null, platform: string): Date | null => {
     if (!dateStr) return null;
     if (platform === 'tiktok' && /^\d{1,2} \w+$/.test(dateStr)) {
@@ -42,7 +43,10 @@ export const processAndMatchAnalytics = async (
 ): Promise<{ updated: number, created: number, updatedPostsData: Map<string, any> }> => {
     const platformName = platform.toLowerCase();
     const mapper = platformCsvMappers[platformName];
-    if (!mapper) return { updated: 0, created: 0, updatedPostsData: new Map() };
+    if (!mapper) {
+        console.error(`Nessun mapper trovato per la piattaforma: ${platformName}`);
+        return { updated: 0, created: 0, updatedPostsData: new Map() };
+    }
 
     let updatedPostsCount = 0;
     let createdPostsCount = 0;
@@ -65,14 +69,21 @@ export const processAndMatchAnalytics = async (
             return isNaN(Number(cleanedValue)) ? null : Number(cleanedValue);
         };
         
-        const metricsData: { [key: string]: any } = {};
+        const metricsData: { [key: string]: any } = {
+            userId: userId, // Aggiunge sempre il userId ai dati delle metriche
+        };
         const views = cleanAndConvertToNumber(getValueFromRecord(record, mapper.views));
         if (views !== null) metricsData.views = views;
-        // ... (altre metriche)
-        
+        const likes = cleanAndConvertToNumber(getValueFromRecord(record, mapper.likes));
+        if (likes !== null) metricsData.likes = likes;
+        const comments = cleanAndConvertToNumber(getValueFromRecord(record, mapper.comments));
+        if (comments !== null) metricsData.comments = comments;
+        const shares = cleanAndConvertToNumber(getValueFromRecord(record, mapper.shares));
+        if (shares !== null) metricsData.shares = shares;
+
         if (matchingPostIndex !== -1) {
             const matchedPost = relevantDbPosts[matchingPostIndex];
-            if (Object.keys(metricsData).length > 0) {
+            if (Object.keys(metricsData).length > 1) { // > 1 perché userId è sempre presente
                 const postRef = doc(db, 'performanceMetrics', matchedPost.id);
                 updatesForExistingPosts.push({ ref: postRef, data: metricsData });
                 updatedPostsData.set(matchedPost.id, metricsData);
@@ -88,7 +99,7 @@ export const processAndMatchAnalytics = async (
         }
     }
     
-    // FASE 1: CREAZIONE CONTENUTI
+    // FASE 1: Crea i nuovi documenti 'contenuti'
     const newPostsWithIds: { id: string, metricsData: any }[] = [];
     if (newPostsToCreate.length > 0) {
         const creationBatch = writeBatch(db);
@@ -100,46 +111,34 @@ export const processAndMatchAnalytics = async (
         try {
             await creationBatch.commit();
             createdPostsCount = newPostsToCreate.length;
-            console.log(`✅ FASE 1: ${createdPostsCount} nuovi contenuti creati.`);
+            console.log(`✅ ${createdPostsCount} nuovi contenuti creati.`);
         } catch (error) {
-            console.error("❌ ERRORE FASE 1 (Creazione Contenuti):", error);
+            console.error("❌ Errore durante la creazione dei nuovi contenuti:", error);
             return { updated: 0, created: 0, updatedPostsData: new Map() };
         }
     }
 
-    // FASE 2: AGGIORNAMENTO METRICHE ESISTENTI
-    if (updatesForExistingPosts.length > 0) {
-        const updateMetricsBatch = writeBatch(db);
-        for (const update of updatesForExistingPosts) {
-            updateMetricsBatch.set(update.ref, update.data, { merge: true });
-        }
-        try {
-            await updateMetricsBatch.commit();
-            updatedPostsCount = updatesForExistingPosts.length;
-            console.log(`✅ FASE 2: ${updatedPostsCount} metriche esistenti aggiornate.`);
-        } catch (error) {
-            console.error("❌ ERRORE FASE 2 (Aggiornamento Metriche):", error);
-        }
-    } else {
-        updatedPostsCount = 0;
+    // FASE 2: Aggiorna i post esistenti e aggiunge le metriche per i nuovi
+    const metricsBatch = writeBatch(db);
+    // Aggiungi gli aggiornamenti per i post esistenti
+    for (const update of updatesForExistingPosts) {
+        metricsBatch.set(update.ref, update.data, { merge: true });
     }
-
-    // FASE 3: CREAZIONE NUOVE METRICHE
-    if (newPostsWithIds.length > 0) {
-        const createMetricsBatch = writeBatch(db);
-        for (const newItem of newPostsWithIds) {
-            if (Object.keys(newItem.metricsData).length > 0) {
-                const newMetricsRef = doc(db, 'performanceMetrics', newItem.id);
-                createMetricsBatch.set(newMetricsRef, newItem.metricsData);
-            }
-        }
-        try {
-            await createMetricsBatch.commit();
-            console.log(`✅ FASE 3: ${newPostsWithIds.length} nuove metriche create.`);
-        } catch (error) {
-            console.error("❌ ERRORE FASE 3 (Creazione Nuove Metriche):", error);
+    // Aggiungi le metriche per i post appena creati
+    for (const newItem of newPostsWithIds) {
+        if (Object.keys(newItem.metricsData).length > 1) { // > 1 perché userId è sempre presente
+            const newMetricsRef = doc(db, 'performanceMetrics', newItem.id);
+            metricsBatch.set(newMetricsRef, newItem.metricsData);
         }
     }
 
+    try {
+        await metricsBatch.commit();
+        updatedPostsCount = updatesForExistingPosts.length;
+        console.log(`✅ Batch metriche completato: ${updatedPostsCount} aggiornamenti e ${newPostsWithIds.length} nuove metriche elaborate.`);
+    } catch (error) {
+        console.error("❌ Errore durante l'aggiornamento/creazione delle metriche:", error);
+    }
+    
     return { updated: updatedPostsCount, created: createdPostsCount, updatedPostsData };
 };
