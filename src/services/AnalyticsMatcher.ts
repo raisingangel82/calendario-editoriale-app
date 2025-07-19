@@ -4,7 +4,7 @@ import { isSameDay, parse, startOfDay } from 'date-fns';
 import { it, enUS } from 'date-fns/locale';
 import type { Post } from '../types';
 
-// Mappatura (invariata)
+// Mappatura delle colonne CSV per ogni piattaforma
 const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'youtube': { date: 'Ora pubblicazione video', views: 'Visualizzazioni', title: 'Titolo video', description: 'Titolo video' },
     'instagram': { date: 'Orario di pubblicazione', views: 'Copertura', likes: 'Mi piace', comments: 'Commenti', description: 'Descrizione', postType: 'Tipo di post' },
@@ -12,13 +12,14 @@ const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'tiktok': { date: 'post time', views: 'Total views', likes: 'Total likes', comments: 'Total comments', shares: 'Total shares', description: 'Video title' }
 };
 
-// Funzioni helper (invariate)
+// Funzione helper per estrarre un valore da un record
 const getValueFromRecord = (record: DocumentData, key: string | undefined): string | null => {
     if (!key) return null;
     const recordKey = Object.keys(record).find(k => k.trim().toLowerCase() === key.toLowerCase());
     return recordKey ? record[recordKey] : null;
 };
 
+// Funzione helper per analizzare le date
 const parseDate = (dateStr: string | null, platform: string): Date | null => {
     if (!dateStr) return null;
     if (platform === 'tiktok' && /^\d{1,2} \w+$/.test(dateStr)) {
@@ -54,7 +55,6 @@ export const processAndMatchAnalytics = async (
     const relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
     const updatedPostsData = new Map<string, any>();
     
-    // --- MODIFICA CHIAVE: Strutture dati per il processo a due fasi ---
     const updatesForExistingPosts: { ref: any, data: any }[] = [];
     const newPostsToCreate: { postData: any, metricsData: any }[] = [];
 
@@ -84,15 +84,23 @@ export const processAndMatchAnalytics = async (
         if (shares !== null) metricsData.shares = shares;
 
         if (matchingPostIndex !== -1) {
-            // Se il post esiste, accumula i dati per l'aggiornamento
             const matchedPost = relevantDbPosts[matchingPostIndex];
+
+            // --- LOG DI DEBUG PER VERIFICARE I PERMESSI ---
+            // Controlla se l'ID del proprietario del post corrisponde all'utente che sta importando.
+            console.log(
+                `[Verifica Permessi] Post ID: ${matchedPost.id}`,
+                `| Proprietario nel DB: ${matchedPost.userId}`, 
+                `| Utente che importa: ${userId}`
+            );
+            // ---------------------------------------------
+
             if (Object.keys(metricsData).length > 0) {
                 const postRef = doc(db, 'performanceMetrics', matchedPost.id);
                 updatesForExistingPosts.push({ ref: postRef, data: metricsData });
                 updatedPostsData.set(matchedPost.id, metricsData);
             }
         } else if (importStrategy === 'create_new') {
-            // Se il post non esiste, accumula i dati per la creazione
             const newPostData = {
                 userId: userId,
                 piattaforma: platformName,
@@ -103,8 +111,6 @@ export const processAndMatchAnalytics = async (
         }
     }
     
-    // --- ESECUZIONE DEL PROCESSO A DUE FASI ---
-
     // FASE 1: Crea i nuovi documenti 'contenuti'
     const newPostsWithIds: { id: string, metricsData: any }[] = [];
     if (newPostsToCreate.length > 0) {
@@ -120,18 +126,15 @@ export const processAndMatchAnalytics = async (
             console.log(`${createdPostsCount} nuovi contenuti creati con successo.`);
         } catch (error) {
             console.error("Errore durante la creazione dei nuovi contenuti:", error);
-            // Interrompe il processo se la creazione fallisce
             return { updated: 0, created: 0, updatedPostsData: new Map() };
         }
     }
 
     // FASE 2: Aggiorna i post esistenti e aggiunge le metriche per i nuovi
     const metricsBatch = writeBatch(db);
-    // Aggiungi gli aggiornamenti per i post esistenti
     for (const update of updatesForExistingPosts) {
         metricsBatch.set(update.ref, update.data, { merge: true });
     }
-    // Aggiungi le metriche per i post appena creati
     for (const newItem of newPostsWithIds) {
         if (Object.keys(newItem.metricsData).length > 0) {
             const newMetricsRef = doc(db, 'performanceMetrics', newItem.id);
