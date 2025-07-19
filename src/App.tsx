@@ -77,32 +77,6 @@ function MainLayout() {
   const [statsActiveView, setStatsActiveView] = useState<'produzione' | 'performance' | 'analisiAI'>('produzione');
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
 
-  // --- BLOCCO DI CODICE PER IL TEST DIAGNOSTICO ---
-  useEffect(() => {
-    if (user) {
-      const testPerformanceFetch = async () => {
-        // ID del documento da testare
-        const TEST_ID = '0entGA5mTD9XoBsfovh6'; 
-        console.log(`--- INIZIO TEST SPECIFICO SUL DOCUMENTO ${TEST_ID} ---`);
-        
-        const performanceDocRef = doc(db, 'performanceMetrics', TEST_ID);
-        try {
-          const performanceSnap = await getDoc(performanceDocRef);
-          if (performanceSnap.exists()) {
-            console.log('✅ TEST RIUSCITO: Dati letti con successo:', performanceSnap.data());
-          } else {
-            console.warn('⚠️ TEST AVVIATO: Il documento di metriche non esiste per questo ID.');
-          }
-        } catch (error) {
-          console.error('❌ TEST FALLITO: Errore di permessi durante la lettura del singolo documento.', error);
-        }
-      };
-      
-      testPerformanceFetch();
-    }
-  }, [user]); // Questo test si attiva solo una volta al login
-  // --- FINE BLOCCO DI TEST ---
-
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
