@@ -93,7 +93,7 @@ function MainLayout() {
           
           // Ottieni il token FCM. La VAPID key è fondamentale.
           const currentToken = await getToken(messaging, { 
-            vapidKey: 'INSERISCI_QUI_LA_TUA_VAPID_KEY_DA_FIREBASE' // <-- !! AZIONE RICHIESTA !!
+            vapidKey: BCvTK43mY8OjbcH1aE-ampackLk0vsQIYgYTDXj2K0obzOGZbQL8a7GivgqDIShYbufcW1b-TwCIn-n53q531T0
           });
 
           if (currentToken) {
