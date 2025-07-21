@@ -209,7 +209,7 @@ function MainLayout() {
                 if (isPro) {
                   setActionConfig({ icon: Wand, onClick: () => setStatsActiveView('analisiAI'), label: 'Genera Analisi AI (Pro)' });
                 } else {
-                  setActioneConfig({ icon: LockKeyhole, onClick: () => navigate('/upgrade'), label: 'Analisi AI (Solo Pro)' });
+                  setActionConfig({ icon: LockKeyhole, onClick: () => navigate('/upgrade'), label: 'Analisi AI (Solo Pro)' });
                 }
                 break;
             case 'analisiAI':
