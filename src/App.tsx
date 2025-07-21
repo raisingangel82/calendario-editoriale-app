@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { db, auth } from './firebase';
+import { db, auth, messaging } from './firebase'; // <-- AGGIUNTO: importa 'messaging'
+import { getMessaging, getToken, onMessage } from 'firebase/messaging'; // <-- AGGIUNTO: funzioni per le notifiche
 import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { Plus, Download, UploadCloud, BarChart3, Wand, LockKeyhole } from 'lucide-react';
@@ -30,7 +31,7 @@ import { UpgradePage } from './components/UpgradePage';
 import { SuccessPage } from './components/SuccessPage';
 import type { Post, Progetto, Categoria, PlatformData } from './types';
 
-// Helper functions
+// Helper functions (invariate)
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipo = (tipoContenuto || "").toLowerCase();
     if (tipo === 'testo breve con immagine') return 'Testo';
@@ -38,11 +39,9 @@ const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     if (['immagine', 'carousel', 'grafica'].some(term => tipo.includes(term))) return 'Immagine';
     return 'Testo';
 };
-
 const isMediaContent = (tipoContenuto: string): boolean => {
     return ["Immagine/Carosello", "Reel", "Booktrailer", "Podcast", "Vlog"].includes(tipoContenuto);
 };
-
 const normalizeDateToMillis = (date: any): number => {
     if (!date) return 0;
     if (date instanceof Timestamp) return date.toMillis();
@@ -81,6 +80,55 @@ function MainLayout() {
     useSensor(MouseSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
   );
+
+  // <-- AGGIUNTO: useEffect per gestire la richiesta di permessi e la ricezione delle notifiche
+  useEffect(() => {
+    if (!user || !messaging) return;
+
+    const requestPermissionAndSaveToken = async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          console.log('Permesso di notifica concesso.');
+          
+          // Ottieni il token FCM. La VAPID key è fondamentale.
+          const currentToken = await getToken(messaging, { 
+            vapidKey: 'INSERISCI_QUI_LA_TUA_VAPID_KEY_DA_FIREBASE' // <-- !! AZIONE RICHIESTA !!
+          });
+
+          if (currentToken) {
+            console.log('Token FCM ottenuto:', currentToken);
+            // Salva il token in Firestore per l'invio dal backend
+            const tokenRef = doc(db, 'fcmTokens', currentToken);
+            await setDoc(tokenRef, {
+              userId: user.uid,
+              token: currentToken,
+              createdAt: Timestamp.now()
+            });
+          } else {
+            console.warn('Impossibile ottenere il token FCM. Assicurati che le notifiche siano abilitate nel browser.');
+          }
+        } else {
+          console.warn('Permesso di notifica non concesso dall\'utente.');
+        }
+      } catch (error) {
+        console.error('Errore durante la richiesta del token di notifica:', error);
+      }
+    };
+
+    requestPermissionAndSaveToken();
+
+    // Gestisce le notifiche quando l'app è in primo piano (attiva sul browser)
+    const unsubscribe = onMessage(messaging, (payload) => {
+      console.log('Messaggio ricevuto con l\'app in primo piano: ', payload);
+      // Mostra una notifica personalizzata o un alert
+      alert(`Promemoria: ${payload.notification?.title}\n${payload.notification?.body}`);
+    });
+
+    return () => {
+      unsubscribe(); // Pulisce il listener quando il componente viene smontato
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -161,7 +209,7 @@ function MainLayout() {
                 if (isPro) {
                   setActionConfig({ icon: Wand, onClick: () => setStatsActiveView('analisiAI'), label: 'Genera Analisi AI (Pro)' });
                 } else {
-                  setActionConfig({ icon: LockKeyhole, onClick: () => navigate('/upgrade'), label: 'Analisi AI (Solo Pro)' });
+                  setActioneConfig({ icon: LockKeyhole, onClick: () => navigate('/upgrade'), label: 'Analisi AI (Solo Pro)' });
                 }
                 break;
             case 'analisiAI':
