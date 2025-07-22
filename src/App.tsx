@@ -1,8 +1,22 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { db, auth, messaging } from './firebase'; // <-- AGGIUNTO: importa 'messaging'
-import { getMessaging, getToken, onMessage } from 'firebase/messaging'; // <-- AGGIUNTO: funzioni per le notifiche
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp, setDoc, getDoc } from 'firebase/firestore';
+import { db, auth, messaging } from './firebase';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { 
+    collection, 
+    query, 
+    where, 
+    onSnapshot, 
+    doc, 
+    updateDoc, 
+    deleteDoc, 
+    addDoc, 
+    Timestamp, 
+    setDoc, 
+    getDoc,
+    writeBatch, // Import for atomic operations
+    getDocs      // Import to get documents once
+} from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { Plus, Download, UploadCloud, BarChart3, Wand, LockKeyhole } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -31,7 +45,7 @@ import { UpgradePage } from './components/UpgradePage';
 import { SuccessPage } from './components/SuccessPage';
 import type { Post, Progetto, Categoria, PlatformData } from './types';
 
-// Helper functions (invariate)
+// Helper functions
 const getCategoriaGenerica = (tipoContenuto: string): Categoria => {
     const tipo = (tipoContenuto || "").toLowerCase();
     if (tipo === 'testo breve con immagine') return 'Testo';
@@ -52,6 +66,13 @@ const normalizeDateToMillis = (date: any): number => {
     }
     return 0;
 };
+
+// Interface for import options, passed from the modal
+interface ImportOptions {
+  mode: 'add' | 'overwrite';
+  replaceConfig: boolean;
+  startDate?: string;
+}
 
 function MainLayout() {
   const { user } = useAuth();
@@ -81,7 +102,7 @@ function MainLayout() {
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } })
   );
 
-  // <-- AGGIUNTO: useEffect per gestire la richiesta di permessi e la ricezione delle notifiche
+  // Effect for Firebase Cloud Messaging (Notifications)
   useEffect(() => {
     if (!user || !messaging) return;
 
@@ -90,15 +111,11 @@ function MainLayout() {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           console.log('Permesso di notifica concesso.');
-          
-          // Ottieni il token FCM. La VAPID key è fondamentale.
           const currentToken = await getToken(messaging, { 
-            vapidKey: BCvTK43mY8OjbcH1aE-ampackLk0vsQIYgYTDXj2K0obzOGZbQL8a7GivgqDIShYbufcW1b-TwCIn-n53q531T0
+            vapidKey: 'BCvTK43mY8OjbcH1aE-ampackLk0vsQIYgYTDXj2K0obzOGZbQL8a7GivgqDIShYbufcW1b-TwCIn-n53q531T0'
           });
-
           if (currentToken) {
             console.log('Token FCM ottenuto:', currentToken);
-            // Salva il token in Firestore per l'invio dal backend
             const tokenRef = doc(db, 'fcmTokens', currentToken);
             await setDoc(tokenRef, {
               userId: user.uid,
@@ -106,10 +123,10 @@ function MainLayout() {
               createdAt: Timestamp.now()
             });
           } else {
-            console.warn('Impossibile ottenere il token FCM. Assicurati che le notifiche siano abilitate nel browser.');
+            console.warn('Impossibile ottenere il token FCM.');
           }
         } else {
-          console.warn('Permesso di notifica non concesso dall\'utente.');
+          console.warn('Permesso di notifica non concesso.');
         }
       } catch (error) {
         console.error('Errore durante la richiesta del token di notifica:', error);
@@ -118,18 +135,17 @@ function MainLayout() {
 
     requestPermissionAndSaveToken();
 
-    // Gestisce le notifiche quando l'app è in primo piano (attiva sul browser)
     const unsubscribe = onMessage(messaging, (payload) => {
       console.log('Messaggio ricevuto con l\'app in primo piano: ', payload);
-      // Mostra una notifica personalizzata o un alert
       alert(`Promemoria: ${payload.notification?.title}\n${payload.notification?.body}`);
     });
 
     return () => {
-      unsubscribe(); // Pulisce il listener quando il componente viene smontato
+      unsubscribe();
     };
   }, [user]);
 
+  // Effect for fetching user data from Firestore
   useEffect(() => {
     if (!user) {
       setPosts([]);
@@ -142,6 +158,7 @@ function MainLayout() {
     
     setLoadingData(true);
 
+    // Listener for user preferences
     const userPrefsRef = doc(db, 'userPreferences', user.uid);
     const unsubUserPrefs = onSnapshot(userPrefsRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -155,15 +172,16 @@ function MainLayout() {
         }
     });
 
+    // Listener for projects
     const qProgetti = query(collection(db, "progetti"), where("userId", "==", user.uid));
     const unsubProgetti = onSnapshot(qProgetti, (snapshot) => {
         setProgetti(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Progetto[]);
     });
 
+    // Listener for posts (contenuti)
     const qPosts = query(collection(db, "contenuti"), where("userId", "==", user.uid));
     const unsubPosts = onSnapshot(qPosts, async (snapshot) => {
         const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[];
-        
         const postsConPerformance = await Promise.all(
             postsData.map(async (post) => {
                 const performanceDocRef = doc(db, 'performanceMetrics', post.id);
@@ -185,12 +203,14 @@ function MainLayout() {
         setLoadingData(false);
     });
     
+    // Listener for platforms
     const qPlatforms = query(collection(db, "platforms"), where("userId", "==", user.uid));
     const unsubPlatforms = onSnapshot(qPlatforms, (snapshot) => {
         const customPlatforms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as PlatformData[];
         setPlatforms(customPlatforms.length > 0 ? customPlatforms : allDefaultPlatforms);
     });
     
+    // Cleanup listeners on component unmount
     return () => { 
         unsubPosts(); 
         unsubProgetti(); 
@@ -199,6 +219,7 @@ function MainLayout() {
     };
   }, [user]);
 
+  // Effect to configure the main floating action button based on the current route
   useEffect(() => {
     if (location.pathname.startsWith('/stats')) {
          switch (statsActiveView) {
@@ -259,6 +280,7 @@ function MainLayout() {
     setIsAnalyticsModalOpen(false);
   };
 
+  // CRUD operations for posts
   const handleAddPost = async (formData: any) => {
     if (user) {
         const { data, ...rest } = formData;
@@ -334,6 +356,7 @@ function MainLayout() {
     }
   };
   
+  // Export functionality
   const handleExportFromTodo = (count: number, filter: Categoria | 'all') => {
     const postsToExport = posts
         .filter(post => !post.statoProdotto && (filter === 'all' || getCategoriaGenerica(post.tipoContenuto) === filter))
@@ -367,8 +390,90 @@ function MainLayout() {
     link.remove();
   };
 
-  const handleImport = async () => { /* Logic to be implemented */ };
+  // --- FINAL AND FLEXIBLE IMPORT LOGIC ---
+  const handleImport = async (importedData: any, options: ImportOptions) => {
+    if (!user) {
+      alert("Errore: utente non autenticato.");
+      return;
+    }
+
+    const { mode, replaceConfig, startDate } = options;
+    const { posts: importedPosts, progetti: importedProgetti, platforms: importedPlatforms } = importedData;
+
+    if (!Array.isArray(importedPosts)) {
+        alert('Errore: Il file di importazione non contiene un array "posts" valido.');
+        return;
+    }
+
+    const batch = writeBatch(db);
+
+    try {
+        // --- DELETION LOGIC (ONLY FOR OVERWRITE MODE) ---
+        if (mode === 'overwrite') {
+            if (!startDate) {
+              alert("Errore: la data di inizio per la sovrascrittura non è stata fornita.");
+              return;
+            }
+            
+            // Delete posts from the selected date onwards
+            const overwriteTimestamp = Timestamp.fromDate(new Date(startDate));
+            const postsQuery = query(collection(db, "contenuti"), where("userId", "==", user.uid), where("data", ">=", overwriteTimestamp));
+            const postsSnapshot = await getDocs(postsQuery);
+            postsSnapshot.forEach(doc => batch.delete(doc.ref));
+
+            // If the checkbox is checked, also delete existing projects and platforms
+            if (replaceConfig) {
+                const progettiQuery = query(collection(db, "progetti"), where("userId", "==", user.uid));
+                const platformsQuery = query(collection(db, "platforms"), where("userId", "==", user.uid));
+                const [progettiSnapshot, platformsSnapshot] = await Promise.all([getDocs(progettiQuery), getDocs(platformsQuery)]);
+                progettiSnapshot.forEach(doc => batch.delete(doc.ref));
+                platformsSnapshot.forEach(doc => batch.delete(doc.ref));
+            }
+        }
+
+        // --- ADDITION LOGIC ---
+        
+        // Always add posts from the file
+        importedPosts.forEach(post => {
+          const newPostRef = doc(collection(db, 'contenuti'));
+          const dataToSave = { ...post, data: post.data ? Timestamp.fromDate(new Date(post.data.seconds ? post.data.seconds * 1000 : post.data)) : Timestamp.now(), userId: user.uid };
+          delete dataToSave.id;
+          batch.set(newPostRef, dataToSave);
+        });
+
+        // If the checkbox is checked, also add projects and platforms
+        if (replaceConfig) {
+            if (Array.isArray(importedProgetti)) {
+                importedProgetti.forEach(proj => {
+                    const newProjRef = doc(collection(db, 'progetti'));
+                    const dataToSave = { ...proj, userId: user.uid };
+                    delete dataToSave.id;
+                    batch.set(newProjRef, dataToSave);
+                });
+            }
+            if (Array.isArray(importedPlatforms)) {
+                importedPlatforms.forEach(plat => {
+                    const newPlatRef = doc(collection(db, 'platforms'));
+                    const dataToSave = { ...plat, userId: user.uid };
+                    delete dataToSave.id;
+                    batch.set(newPlatRef, dataToSave);
+                });
+            }
+        }
+        
+        // Commit all batched operations at once
+        await batch.commit();
+        alert(`Importazione completata con successo!`);
+
+    } catch (error) {
+      console.error("Errore durante l'importazione:", error);
+      alert(`Si è verificato un errore durante l'importazione. Controlla la console per i dettagli.`);
+    }
+
+    handleCloseModals();
+  };
   
+  // CRUD operations for projects and platforms
   const handleAddProject = async (data: any) => { if(user) await addDoc(collection(db, 'progetti'), { ...data, userId: user.uid }); };
   const handleUpdateProject = async (id: string, data: any) => await updateDoc(doc(db, "progetti", id), data);
   const handleDeleteProject = async (id: string) => await deleteDoc(doc(db, 'progetti', id));
@@ -383,6 +488,7 @@ function MainLayout() {
     await deleteDoc(doc(db, 'platforms', id));
   };
 
+  // Analytics import logic
   const handleAnalyticsImport = (parsedData: any[], platformName: string, strategy: 'update_only' | 'create_new') => {
     if (!user) {
         console.error("User not authenticated. Import failed.");
@@ -414,6 +520,7 @@ function MainLayout() {
       });
   };
   
+  // Drag and drop handler
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && active.id !== over.id) {
@@ -421,8 +528,10 @@ function MainLayout() {
     }
   };
 
+  // Loading state
   if (loadingData) return <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-gray-900"><p className="dark:text-white">Caricamento dati...</p></div>;
 
+  // App routes
   const routes = (
       <Routes>
           <Route path="/" element={<Calendario posts={posts} progetti={progetti} workingDays={workingDays} onCardClick={setSelectedPost} onStatusChange={handleStatusChange} autoScrollEnabled={autoScrollEnabled} />} />
@@ -451,6 +560,7 @@ function MainLayout() {
         {!isDesktop && <BottomBar actionConfig={actionConfig} />}
       </div>
       
+      {/* Modals */}
       {(selectedPost || isAddModalOpen) && ( <ContenutoModal post={selectedPost || undefined} onClose={handleCloseModals} onSave={isAddModalOpen ? handleAddPost : handleSavePost} onDelete={handleDeletePost} onDuplicate={handleDuplicatePost} progetti={progetti} /> )}
       {isImportModalOpen && (<ImportModal onClose={handleCloseModals} onImport={handleImport} />)}
       {isProjectModalOpen && ( <ProjectManagerModal onClose={() => setIsProjectModalOpen(false)} progetti={progetti} user={user} onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} /> )}
@@ -460,6 +570,7 @@ function MainLayout() {
   );
 }
 
+// Component to handle auth state
 function AppContent() {
   const { user, loading } = useAuth();
   if (loading) return <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-gray-900"><p className="dark:text-white">Inizializzazione...</p></div>;
@@ -472,5 +583,17 @@ function AppContent() {
   );
 }
 
-function App() { return ( <BrowserRouter> <ScrollToTop /> <ThemeProvider> <AuthProvider> <AppContent /> </AuthProvider> </ThemeProvider> </BrowserRouter> ); }
+// Main App component with providers
+function App() { 
+  return ( 
+    <BrowserRouter> 
+      <ScrollToTop /> 
+      <ThemeProvider> 
+        <AuthProvider> 
+          <AppContent /> 
+        </AuthProvider> 
+      </ThemeProvider> 
+    </BrowserRouter> 
+  ); 
+}
 export default App;
