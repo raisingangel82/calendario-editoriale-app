@@ -1,4 +1,3 @@
-```typescript
 import React, { useState, useEffect, useMemo } from 'react';
 import { DndContext, useDroppable, type DragEndEvent } from '@dnd-kit/core';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
@@ -24,12 +23,14 @@ const normalizeDate = (date: any): Date | null => {
     return isNaN(parsed.getTime()) ? null : parsed;
 };
 
+// ▼▼▼ MODIFICA: Corretta l'interfaccia per risolvere l'errore di build ▼▼▼
 interface CalendarioProps {
     posts: Post[];
     progetti: Progetto[];
     workingDays: number[];
     onCardClick: (post: Post) => void;
-    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
+    // Corretto il tipo per includere 'statoMontato' e risolto l'errore di sintassi
+    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato' | 'statoMontato', value: boolean) => void;
     autoScrollEnabled: boolean;
 }
 
@@ -192,7 +193,6 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
                                         isDraggable={false}
                                         projectColor={progetto?.color} 
                                         nomeProgetto={progetto?.nome}
-                                        // ▼▼▼ MODIFICA: La prop 'isMobileView' è stata rimossa ▼▼▼
                                     />);
                                 })
                             ) : <div className="h-10 text-center text-gray-400 text-xs pt-2">Nessun post</div>
