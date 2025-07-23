@@ -1,3 +1,4 @@
+```typescript
 import React, { useState, useEffect, useMemo } from 'react';
 import { DndContext, useDroppable, type DragEndEvent } from '@dnd-kit/core';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
@@ -116,7 +117,6 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
 
     if (isDesktop) {
         return (
-            // ▼▼▼ MODIFICA: Applicata la classe di padding unificata per coerenza ▼▼▼
             <div className="p-4 sm:p-6">
                 <DndContext onDragEnd={handleDragEnd}>
                     <div className="space-y-8">
@@ -171,8 +171,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
     }
 
     return (
-        // ▼▼▼ MODIFICA: Applicata la classe di padding unificata per coerenza ▼▼▼
-        <div className="space-y-4 p-4 sm:p-6">
+        <div className="p-4 sm:p-6 space-y-4">
             {weeks.flat().map(giorno => {
                 const isToday = isEqual(startOfDay(giorno), oggi);
                 const dayId = `day-${format(giorno, 'yyyy-MM-dd')}`;
@@ -186,10 +185,14 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
                                 contenuti.map(post => {
                                     const progetto = progetti.find(p => p.id === post.projectId);
                                     return (<ContenutoCard
-                                        key={post.id} post={post} onCardClick={onCardClick}
-                                        onStatusChange={onStatusChange} isDraggable={false}
-                                        projectColor={progetto?.color} nomeProgetto={progetto?.nome}
-                                        isMobileView={true}
+                                        key={post.id} 
+                                        post={post} 
+                                        onCardClick={onCardClick}
+                                        onStatusChange={onStatusChange} 
+                                        isDraggable={false}
+                                        projectColor={progetto?.color} 
+                                        nomeProgetto={progetto?.nome}
+                                        // ▼▼▼ MODIFICA: La prop 'isMobileView' è stata rimossa ▼▼▼
                                     />);
                                 })
                             ) : <div className="h-10 text-center text-gray-400 text-xs pt-2">Nessun post</div>
