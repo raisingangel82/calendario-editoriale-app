@@ -170,28 +170,30 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
     }
 
     return (
-        <div className="space-y-4 p-4 overflow-hidden">
+        <div className="space-y-4 p-4">
             {weeks.flat().map(giorno => {
                 const isToday = isEqual(startOfDay(giorno), oggi);
                 const dayId = `day-${format(giorno, 'yyyy-MM-dd')}`;
                 const headerClass = isToday ? `${getActiveColor('bg')} text-white` : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200';
                 const contenuti = posts.filter(p => p.data && isEqual(startOfDay(normalizeDate(p.data)!), startOfDay(giorno))).sort((a,b) => normalizeDate(a.data)!.getTime() - normalizeDate(b.data)!.getTime());
+                
+                if (contenuti.length === 0) return null;
+
                 return (
-                    <div key={giorno.toISOString()} id={dayId} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                        <h4 className={`font-bold text-sm p-3 border-b border-gray-200 dark:border-gray-700 capitalize transition-colors ${headerClass}`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4>
-                        <div className="space-y-3 p-3 bg-gray-50 dark:bg-gray-800/50 min-h-[3rem]">{
-                            contenuti.length > 0 ? (
-                                contenuti.map(post => {
-                                    const progetto = progetti.find(p => p.id === post.projectId);
-                                    return (<ContenutoCard
-                                        key={post.id} post={post} onCardClick={onCardClick}
-                                        onStatusChange={onStatusChange} isDraggable={false}
-                                        projectColor={progetto?.color} nomeProgetto={progetto?.nome}
-                                        isMobileView={true}
-                                    />);
-                                })
-                            ) : <div className="h-10 text-center text-gray-400 text-xs pt-2">Nessun post</div>
-                        }</div>
+                    <div key={giorno.toISOString()} id={dayId}>
+                        <h4 className={`font-bold text-sm p-3 capitalize ${headerClass} rounded-t-lg border border-b-0 border-gray-200 dark:border-gray-700`}>{format(giorno, 'eeee dd MMMM', { locale: it })}</h4>
+                        {/* --- MODIFICA: Applicata la struttura a griglia per contenere le card --- */}
+                        <div className="grid grid-cols-1 gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 min-h-[3rem] border border-t-0 border-gray-200 dark:border-gray-700 rounded-b-lg">
+                            {contenuti.map(post => {
+                                const progetto = progetti.find(p => p.id === post.projectId);
+                                return (<ContenutoCard
+                                    key={post.id} post={post} onCardClick={onCardClick}
+                                    onStatusChange={onStatusChange} isDraggable={false}
+                                    projectColor={progetto?.color} nomeProgetto={progetto?.nome}
+                                    isMobileView={true}
+                                />);
+                            })}
+                        </div>
                     </div>
                 );
             })}
