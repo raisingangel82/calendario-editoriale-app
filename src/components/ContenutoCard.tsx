@@ -15,7 +15,6 @@ interface ContenutoCardProps {
     nomeProgetto?: string;
     projectColor?: string;
     showDate?: boolean;
-    // La prop 'isMobileView' è stata rimossa
     onCardClick: (post: Post) => void;
     onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato' | 'statoMontato', value: boolean) => void;
     isDraggable: boolean;
@@ -29,7 +28,6 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
     const finalColor = getColor(projectColor || 'stone', colorShade);  
     const borderStyle = { 
         borderLeft: `5px solid ${finalColor.hex}`,
-        // Rimosso il condizionale, il bordo destro c'è sempre
         borderRight: `5px solid ${finalColor.hex}` 
     };
 
@@ -48,8 +46,8 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
         <div 
             ref={setNodeRef} 
             style={{ ...style, ...borderStyle }}
-            // Rimosso il condizionale, l'altezza è sempre h-24
-            className="flex w-full h-24 items-stretch bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all group"
+            // ▼▼▼ MODIFICA DEFINITIVA: Aggiunto 'min-w-0' per risolvere l'overflow in ogni contesto. ▼▼▼
+            className="flex w-full h-24 items-stretch bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all group min-w-0"
         >
             <div 
                 {...attributes}
@@ -108,11 +106,9 @@ export const ContenutoCard: React.FC<ContenutoCardProps> = ({ post, nomeProgetto
                 )}
             </div>
 
-            {/* Rimosso il condizionale, la colonna delle performance c'è sempre */}
             <div 
                 {...attributes}
                 {...listeners}
-                // ▼▼▼ MODIFICA CHIAVE: Rimossa la larghezza fissa 'w-14' e usato 'px-3' per una larghezza flessibile ▼▼▼
                 className={`flex flex-col items-center justify-around flex-shrink-0 px-3 py-2 bg-gray-100 dark:bg-gray-900/40 rounded-r-lg rounded-l-none group-hover:bg-gray-200 dark:group-hover:bg-gray-700/80 transition-colors text-xs text-gray-500 dark:text-gray-400 ${isDraggable ? 'cursor-grab' : ''}`}
             >
                 {post.performance && (
