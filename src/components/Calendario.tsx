@@ -116,7 +116,8 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
 
     if (isDesktop) {
         return (
-            <div className="p-6">
+            // ▼▼▼ MODIFICA: Applicata la classe di padding unificata per coerenza ▼▼▼
+            <div className="p-4 sm:p-6">
                 <DndContext onDragEnd={handleDragEnd}>
                     <div className="space-y-8">
                         {weeks.map((settimana, index) => { 
@@ -170,7 +171,8 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
     }
 
     return (
-        <div className="space-y-4 p-4">
+        // ▼▼▼ MODIFICA: Applicata la classe di padding unificata per coerenza ▼▼▼
+        <div className="space-y-4 p-4 sm:p-6">
             {weeks.flat().map(giorno => {
                 const isToday = isEqual(startOfDay(giorno), oggi);
                 const dayId = `day-${format(giorno, 'yyyy-MM-dd')}`;
