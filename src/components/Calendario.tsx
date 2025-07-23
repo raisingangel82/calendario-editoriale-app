@@ -23,14 +23,12 @@ const normalizeDate = (date: any): Date | null => {
     return isNaN(parsed.getTime()) ? null : parsed;
 };
 
-// ▼▼▼ MODIFICA: Corretta l'interfaccia per risolvere l'errore di build ▼▼▼
 interface CalendarioProps {
     posts: Post[];
     progetti: Progetto[];
     workingDays: number[];
     onCardClick: (post: Post) => void;
-    // Corretto il tipo per includere 'statoMontato' e risolto l'errore di sintassi
-    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato' | 'statoMontato', value: boolean) => void;
+    onStatusChange: (postId: string, field: 'statoProdotto' | 'statoPubblicato', value: boolean) => void;
     autoScrollEnabled: boolean;
 }
 
@@ -118,7 +116,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
 
     if (isDesktop) {
         return (
-            <div className="p-4 sm:p-6">
+            <div className="p-6">
                 <DndContext onDragEnd={handleDragEnd}>
                     <div className="space-y-8">
                         {weeks.map((settimana, index) => { 
@@ -172,7 +170,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
     }
 
     return (
-        <div className="p-4 sm:p-6 space-y-4">
+        <div className="space-y-4 p-4">
             {weeks.flat().map(giorno => {
                 const isToday = isEqual(startOfDay(giorno), oggi);
                 const dayId = `day-${format(giorno, 'yyyy-MM-dd')}`;
@@ -186,13 +184,10 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
                                 contenuti.map(post => {
                                     const progetto = progetti.find(p => p.id === post.projectId);
                                     return (<ContenutoCard
-                                        key={post.id} 
-                                        post={post} 
-                                        onCardClick={onCardClick}
-                                        onStatusChange={onStatusChange} 
-                                        isDraggable={false}
-                                        projectColor={progetto?.color} 
-                                        nomeProgetto={progetto?.nome}
+                                        key={post.id} post={post} onCardClick={onCardClick}
+                                        onStatusChange={onStatusChange} isDraggable={false}
+                                        projectColor={progetto?.color} nomeProgetto={progetto?.nome}
+                                        isMobileView={true}
                                     />);
                                 })
                             ) : <div className="h-10 text-center text-gray-400 text-xs pt-2">Nessun post</div>
