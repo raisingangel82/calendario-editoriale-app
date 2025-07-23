@@ -170,7 +170,7 @@ export const Calendario: React.FC<CalendarioProps> = ({ posts, progetti, working
     }
 
     return (
-        <div className="space-y-4 p-4">
+        <div className="space-y-4 p-4 overflow-hidden">
             {weeks.flat().map(giorno => {
                 const isToday = isEqual(startOfDay(giorno), oggi);
                 const dayId = `day-${format(giorno, 'yyyy-MM-dd')}`;
