@@ -86,27 +86,35 @@ export const processAndMatchAnalytics = async (
         console.log(`\n----------------------------------------------------`);
         console.log(`[DEBUG] 🔍 Analizzo record CSV con data ${csvDate.toLocaleDateString('it-IT')}`);
         console.log(`        Testo: "${csvDescription.substring(0, 80)}..."`);
+        
+        // ▼▼▼ MODIFICA: Ricerca flessibile della data ▼▼▼
+        const searchStartDate = new Date(csvDate.getTime() - (24 * 60 * 60 * 1000)); // 1 giorno prima
+        const searchEndDate = new Date(csvDate.getTime() + (24 * 60 * 60 * 1000));   // 1 giorno dopo
+
+        const postsInDateRange = relevantDbPosts.filter(p => {
+            const postDate = startOfDay(p.data.toDate());
+            return postDate >= startOfDay(searchStartDate) &&
+                   postDate <= startOfDay(searchEndDate) &&
+                   !matchedDbPostIds.has(p.id);
+        });
+        // ▲▲▲ FINE MODIFICA ▲▲▲
 
         let matchedPost: Post | null = null;
-        const postsOnThisDay = relevantDbPosts.filter(p => 
-            isSameDay(startOfDay(p.data.toDate()), startOfDay(csvDate)) && 
-            !matchedDbPostIds.has(p.id)
-        );
-
-        if (postsOnThisDay.length === 0) {
-            console.log(`[FAIL] ❌ Nessun post pianificato trovato nel database per questa data.`);
+        if (postsInDateRange.length === 0) {
+            console.log(`[FAIL] ❌ Nessun post pianificato trovato nel DB nell'intervallo di +/- 1 giorno.`);
         } else {
-            matchedPost = postsOnThisDay.find(p => isSimilar(p.descrizione || p.titolo, csvDescription)) || null;
+            matchedPost = postsInDateRange.find(p => isSimilar(p.descrizione || p.titolo, csvDescription)) || null;
             if (matchedPost) {
-                console.log(`[SUCCESS] ✅ Corrispondenza trovata tramite testo!`);
+                console.log(`[SUCCESS] ✅ Corrispondenza trovata tramite testo nell'intervallo di date!`);
+                console.log(`          Data CSV: ${csvDate.toLocaleDateString('it-IT')}, Data DB: ${matchedPost.data.toDate().toLocaleDateString('it-IT')}`);
                 console.log(`          DB Post: "${(matchedPost.descrizione || matchedPost.titolo).substring(0, 80)}..."`);
             } else {
-                if (postsOnThisDay.length === 1) {
-                    matchedPost = postsOnThisDay[0];
-                    console.log(`[SUCCESS] ✅ Corrispondenza trovata tramite fallback (unico post disponibile).`);
-                    console.log(`          DB Post: "${(matchedPost.descrizione || matchedPost.titolo).substring(0, 80)}..."`);
+                if (postsInDateRange.length === 1) {
+                    matchedPost = postsInDateRange[0];
+                    console.log(`[SUCCESS] ✅ Corrispondenza trovata tramite fallback (unico post disponibile nell'intervallo).`);
+                    console.log(`          Data CSV: ${csvDate.toLocaleDateString('it-IT')}, Data DB: ${matchedPost.data.toDate().toLocaleDateString('it-IT')}`);
                 } else {
-                    console.log(`[FAIL] ❌ Trovati ${postsOnThisDay.length} post per questa data, ma nessuno corrisponde al testo.`);
+                    console.log(`[FAIL] ❌ Trovati ${postsInDateRange.length} post nell'intervallo, ma nessuno corrisponde al testo.`);
                 }
             }
         }
@@ -128,18 +136,15 @@ export const processAndMatchAnalytics = async (
         if (shares !== null) metricsData.shares = shares;
 
         if (matchedPost) {
-            // ▼▼▼ NUOVO BLOCCO DI LOG PER LA SICUREZZA ▼▼▼
             if (matchedPost.userId !== userId) {
                 console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
                 console.error(`[SECURITY_ERROR] 🚨 ID UTENTE NON CORRISPONDENTE!`);
                 console.error(`  - ID Utente Atteso (loggato): ${userId}`);
                 console.error(`  - ID Utente Trovato (nel post del DB): ${matchedPost.userId}`);
                 console.error(`  - ID del Post Problematico: ${matchedPost.id}`);
-                console.error(`  - Titolo del Post: "${matchedPost.titolo}"`);
                 console.error(`  - Questo aggiornamento verrà saltato per prevenire un errore di permessi.`);
                 console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
             } else {
-                // L'ID utente corrisponde, procedi con l'aggiunta al batch
                 matchedDbPostIds.add(matchedPost.id);
                 if (Object.keys(metricsData).length > 1) {
                     const postRef = doc(db, 'performanceMetrics', matchedPost.id);
@@ -147,7 +152,6 @@ export const processAndMatchAnalytics = async (
                     updatedPostsData.set(matchedPost.id, metricsData);
                 }
             }
-            // ▲▲▲ FINE BLOCCO DI LOG DI SICUREZZA ▲▲▲
         } else if (importStrategy === 'create_new') {
             console.log(`[INFO] 📝 Nessun match. Si procederà a creare un nuovo post (strategia: 'create_new').`);
             const newPostData = {
