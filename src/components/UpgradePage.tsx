@@ -52,7 +52,7 @@ export const UpgradePage = () => {
             const createStripeCheckout = httpsCallable(functions, 'createStripeCheckout');
             
             // ID del prezzo del piano Pro su Stripe
-            const priceId = 'price_1Rl7lqGMvHfHEDrIgdl2mghz'; 
+            const priceId = 'price_1RpSPTGMvHfHEDrIUZG23IkU'; 
 
             // Invia l'ID del prezzo e l'URL di origine corrente al backend
             const result = await createStripeCheckout({
@@ -87,7 +87,7 @@ export const UpgradePage = () => {
         },
         {
             title: 'Pro',
-            price: '€4.99',
+            price: '€2.49',
             description: 'Per creator strategici',
             features: ['Tutto del piano Gratuito', 'Progetti illimitati', 'Analisi Strategica con AI', 'Esportazione dati e Duplicazione post'],
             isCurrent: user?.plan === 'pro',
