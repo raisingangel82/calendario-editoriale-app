@@ -4,7 +4,7 @@ import { isSameDay, parse, startOfDay } from 'date-fns';
 import { it, enUS } from 'date-fns/locale';
 import type { Post } from '../types';
 
-// Mappatura delle colonne CSV per ogni piattaforma (INVARIATO)
+// Mappatura delle colonne (invariata)
 const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'youtube': { date: 'Ora pubblicazione video', views: 'Visualizzazioni', title: 'Titolo video', description: 'Titolo video' },
     'instagram': { date: 'Orario di pubblicazione', views: 'Copertura', likes: 'Mi piace', comments: 'Commenti', description: 'Descrizione', postType: 'Tipo di post' },
@@ -12,14 +12,13 @@ const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'tiktok': { date: 'post time', views: 'Total views', likes: 'Total likes', comments: 'Total comments', shares: 'Total shares', description: 'Video title' }
 };
 
-// Funzione helper per estrarre un valore da un record (INVARIATO)
+// Funzioni helper (invariate)
 const getValueFromRecord = (record: DocumentData, key: string | undefined): string | null => {
     if (!key) return null;
     const recordKey = Object.keys(record).find(k => k.trim().toLowerCase() === key.toLowerCase());
     return recordKey ? record[recordKey] : null;
 };
 
-// Funzione helper per analizzare le date (INVARIATO)
 const parseDate = (dateStr: string | null, platform: string): Date | null => {
     if (!dateStr) return null;
     if (platform === 'tiktok' && /^\d{1,2} \w+$/.test(dateStr)) {
@@ -33,35 +32,15 @@ const parseDate = (dateStr: string | null, platform: string): Date | null => {
     return null;
 };
 
-// NUOVA FUNZIONE: Confronta due stringhe di testo in modo flessibile.
-// Serve per distinguere post diversi pubblicati nello stesso giorno.
 const isSimilar = (str1: string, str2: string): boolean => {
     if (!str1 || !str2) return false;
-
-    const normalize = (str: string) => 
-        str.toLowerCase()
-           .replace(/[^\w\s]/gi, '') // Rimuove punteggiatura
-           .replace(/\s+/g, ' ')      // Normalizza gli spazi
-           .trim();
-
+    const normalize = (str: string) => str.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, ' ').trim();
     const normalized1 = normalize(str1);
     const normalized2 = normalize(str2);
-
     if (normalized1.length === 0 || normalized2.length === 0) return false;
-    
-    // Per essere più robusto, considera una lunghezza minima per il confronto.
-    // Un titolo di 30 caratteri deve corrispondere per almeno 15.
     const minLength = Math.min(normalized1.length, normalized2.length);
-    if (minLength < 15) {
-      return normalized1.includes(normalized2) || normalized2.includes(normalized1);
-    }
-
-    // Controlla se la stringa più corta è contenuta in quella più lunga.
-    if (normalized1.length < normalized2.length) {
-        return normalized2.includes(normalized1);
-    } else {
-        return normalized1.includes(normalized2);
-    }
+    if (minLength < 15) { return normalized1.includes(normalized2) || normalized2.includes(normalized1); }
+    return normalized1.length < normalized2.length ? normalized2.includes(normalized1) : normalized1.includes(normalized2);
 };
 
 export const processAndMatchAnalytics = async (
@@ -71,6 +50,12 @@ export const processAndMatchAnalytics = async (
     userId: string,
     importStrategy: 'update_only' | 'create_new'
 ): Promise<{ updated: number, created: number, updatedPostsData: Map<string, any> }> => {
+
+    console.log(`\n\n====================================================`);
+    console.log(`[INFO] Inizio analisi per la piattaforma: "${platform.toUpperCase()}"`);
+    console.log(`[INFO] Trovati ${parsedData.length} record nel file CSV.`);
+    console.log(`====================================================\n`);
+
     const platformName = platform.toLowerCase();
     const mapper = platformCsvMappers[platformName];
     if (!mapper) {
@@ -83,41 +68,48 @@ export const processAndMatchAnalytics = async (
     const relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
     const updatedPostsData = new Map<string, any>();
     
-    // MODIFICA: Set per tenere traccia dei post del DB già abbinati ed evitare doppioni.
     const matchedDbPostIds = new Set<string>();
-
     const updatesForExistingPosts: { ref: any, data: any }[] = [];
     const newPostsToCreate: { postData: any, metricsData: any }[] = [];
 
     for (const record of parsedData) {
         const rawDate = getValueFromRecord(record, mapper.date);
         const csvDate = parseDate(rawDate, platformName);
-        if (!csvDate) continue;
 
-        // LOGICA DI MATCH MODIFICATA: Ora è più robusta.
-        // -------------------------------------------------------------
+        if (!csvDate) {
+            console.warn(`[WARN] ⚠️ Data non valida o illeggibile: "${rawDate}". Salto questa riga.`);
+            continue;
+        }
+
         const csvDescription = getValueFromRecord(record, mapper.description) || getValueFromRecord(record, mapper.title) || '';
 
-        // Fase 1: Cerca una corrispondenza di alta precisione (stesso giorno + testo simile).
-        let matchedPost = relevantDbPosts.find(p => 
-            !matchedDbPostIds.has(p.id) && // Non deve essere già stato abbinato
-            isSameDay(startOfDay(p.data.toDate()), startOfDay(csvDate)) &&
-            isSimilar(p.descrizione || p.titolo, csvDescription)
+        console.log(`\n----------------------------------------------------`);
+        console.log(`[DEBUG] 🔍 Analizzo record CSV con data ${csvDate.toLocaleDateString('it-IT')}`);
+        console.log(`        Testo: "${csvDescription.substring(0, 80)}..."`);
+
+        let matchedPost: Post | null = null;
+        const postsOnThisDay = relevantDbPosts.filter(p => 
+            isSameDay(startOfDay(p.data.toDate()), startOfDay(csvDate)) && 
+            !matchedDbPostIds.has(p.id)
         );
 
-        // Fase 2 (Fallback): Se non trova un match con il testo, e c'è UN SOLO post
-        // pianificato per quel giorno, lo abbina. Questo gestisce i casi di post singoli
-        // in cui il testo potrebbe essere leggermente diverso.
-        if (!matchedPost) {
-            const postsOnThisDay = relevantDbPosts.filter(p => 
-                isSameDay(startOfDay(p.data.toDate()), startOfDay(csvDate)) && 
-                !matchedDbPostIds.has(p.id)
-            );
-            if (postsOnThisDay.length === 1) {
-                matchedPost = postsOnThisDay[0];
+        if (postsOnThisDay.length === 0) {
+            console.log(`[FAIL] ❌ Nessun post pianificato trovato nel database per questa data.`);
+        } else {
+            matchedPost = postsOnThisDay.find(p => isSimilar(p.descrizione || p.titolo, csvDescription)) || null;
+            if (matchedPost) {
+                console.log(`[SUCCESS] ✅ Corrispondenza trovata tramite testo!`);
+                console.log(`          DB Post: "${(matchedPost.descrizione || matchedPost.titolo).substring(0, 80)}..."`);
+            } else {
+                if (postsOnThisDay.length === 1) {
+                    matchedPost = postsOnThisDay[0];
+                    console.log(`[SUCCESS] ✅ Corrispondenza trovata tramite fallback (unico post disponibile).`);
+                    console.log(`          DB Post: "${(matchedPost.descrizione || matchedPost.titolo).substring(0, 80)}..."`);
+                } else {
+                    console.log(`[FAIL] ❌ Trovati ${postsOnThisDay.length} post per questa data, ma nessuno corrisponde al testo.`);
+                }
             }
         }
-        // -------------------------------------------------------------
 
         const cleanAndConvertToNumber = (value: string | null): number | null => {
             if (value === null || value === undefined) return null;
@@ -125,9 +117,7 @@ export const processAndMatchAnalytics = async (
             return isNaN(Number(cleanedValue)) ? null : Number(cleanedValue);
         };
         
-        const metricsData: { [key: string]: any } = {
-            userId: userId,
-        };
+        const metricsData: { [key: string]: any } = { userId: userId };
         const views = cleanAndConvertToNumber(getValueFromRecord(record, mapper.views));
         if (views !== null) metricsData.views = views;
         const likes = cleanAndConvertToNumber(getValueFromRecord(record, mapper.likes));
@@ -138,16 +128,28 @@ export const processAndMatchAnalytics = async (
         if (shares !== null) metricsData.shares = shares;
 
         if (matchedPost) {
-            // MODIFICA: Una volta trovato un match, lo "blocchiamo" per non riutilizzarlo.
-            matchedDbPostIds.add(matchedPost.id);
-
-            if (Object.keys(metricsData).length > 1) {
-                const postRef = doc(db, 'performanceMetrics', matchedPost.id);
-                updatesForExistingPosts.push({ ref: postRef, data: metricsData });
-                updatedPostsData.set(matchedPost.id, metricsData);
+            // ▼▼▼ NUOVO BLOCCO DI LOG PER LA SICUREZZA ▼▼▼
+            if (matchedPost.userId !== userId) {
+                console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
+                console.error(`[SECURITY_ERROR] 🚨 ID UTENTE NON CORRISPONDENTE!`);
+                console.error(`  - ID Utente Atteso (loggato): ${userId}`);
+                console.error(`  - ID Utente Trovato (nel post del DB): ${matchedPost.userId}`);
+                console.error(`  - ID del Post Problematico: ${matchedPost.id}`);
+                console.error(`  - Titolo del Post: "${matchedPost.titolo}"`);
+                console.error(`  - Questo aggiornamento verrà saltato per prevenire un errore di permessi.`);
+                console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
+            } else {
+                // L'ID utente corrisponde, procedi con l'aggiunta al batch
+                matchedDbPostIds.add(matchedPost.id);
+                if (Object.keys(metricsData).length > 1) {
+                    const postRef = doc(db, 'performanceMetrics', matchedPost.id);
+                    updatesForExistingPosts.push({ ref: postRef, data: metricsData });
+                    updatedPostsData.set(matchedPost.id, metricsData);
+                }
             }
+            // ▲▲▲ FINE BLOCCO DI LOG DI SICUREZZA ▲▲▲
         } else if (importStrategy === 'create_new') {
-            // Questa parte per la creazione di nuovi post rimane INVARIATA.
+            console.log(`[INFO] 📝 Nessun match. Si procederà a creare un nuovo post (strategia: 'create_new').`);
             const newPostData = {
                 userId: userId,
                 piattaforma: platformName,
@@ -158,11 +160,21 @@ export const processAndMatchAnalytics = async (
         }
     }
     
-    // Il resto del file, con la scrittura batch su Firebase, è INVARIATO.
-    // ...
+    // Scrittura batch su Firebase (invariata)
     const newPostsWithIds: { id: string, metricsData: any }[] = [];
     if (newPostsToCreate.length > 0) {
-        // ...
+        const creationBatch = writeBatch(db);
+        for (const item of newPostsToCreate) {
+            const newPostRef = doc(collection(db, 'contenuti'));
+            creationBatch.set(newPostRef, { ...item.postData, id: newPostRef.id });
+            newPostsWithIds.push({ id: newPostRef.id, metricsData: item.metricsData });
+        }
+        try {
+            await creationBatch.commit();
+            createdPostsCount = newPostsToCreate.length;
+        } catch (error) {
+            console.error("❌ Errore durante la creazione dei nuovi contenuti:", error);
+        }
     }
 
     const metricsBatch = writeBatch(db);
@@ -176,13 +188,20 @@ export const processAndMatchAnalytics = async (
         }
     }
 
-    try {
-        await metricsBatch.commit();
-        updatedPostsCount = updatesForExistingPosts.length;
-        console.log(`✅ Batch metriche completato: ${updatedPostsCount} aggiornamenti e ${newPostsWithIds.length} nuove metriche elaborate.`);
-    } catch (error) {
-        console.error("❌ Errore durante l'aggiornamento/creazione delle metriche:", error);
+    if (updatesForExistingPosts.length > 0 || newPostsWithIds.length > 0) {
+        try {
+            await metricsBatch.commit();
+            updatedPostsCount = updatesForExistingPosts.length;
+        } catch (error) {
+            console.error("❌ Errore durante l'aggiornamento/creazione delle metriche:", error);
+        }
     }
+    
+    console.log(`\n====================================================`);
+    console.log(`[INFO] Analisi per "${platform.toUpperCase()}" completata.`);
+    console.log(`       Post Aggiornati: ${updatedPostsCount}`);
+    console.log(`       Nuovi Post Creati: ${createdPostsCount}`);
+    console.log(`====================================================\n\n`);
     
     return { updated: updatedPostsCount, created: createdPostsCount, updatedPostsData };
 };
