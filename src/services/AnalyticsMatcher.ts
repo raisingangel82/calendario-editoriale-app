@@ -1,10 +1,9 @@
 import { db } from '../firebase';
 import { doc, setDoc, Timestamp, type DocumentData, writeBatch, collection } from 'firebase/firestore'; 
-import { isSameDay, parse, startOfDay } from 'date-fns';
+import { startOfDay, parse } from 'date-fns';
 import { it, enUS } from 'date-fns/locale';
 import type { Post } from '../types';
 
-// Mappatura delle colonne (invariata)
 const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'youtube': { date: 'Ora pubblicazione video', views: 'Visualizzazioni', title: 'Titolo video', description: 'Titolo video' },
     'instagram': { date: 'Orario di pubblicazione', views: 'Copertura', likes: 'Mi piace', comments: 'Commenti', description: 'Descrizione', postType: 'Tipo di post' },
@@ -12,7 +11,6 @@ const platformCsvMappers: { [key: string]: { [key: string]: string } } = {
     'tiktok': { date: 'post time', views: 'Total views', likes: 'Total likes', comments: 'Total comments', shares: 'Total shares', description: 'Video title' }
 };
 
-// Funzioni helper (invariate)
 const getValueFromRecord = (record: DocumentData, key: string | undefined): string | null => {
     if (!key) return null;
     const recordKey = Object.keys(record).find(k => k.trim().toLowerCase() === key.toLowerCase());
@@ -32,16 +30,41 @@ const parseDate = (dateStr: string | null, platform: string): Date | null => {
     return null;
 };
 
+// ▼▼▼ MODIFICA CHIAVE: Funzione di similarità migliorata ▼▼▼
 const isSimilar = (str1: string, str2: string): boolean => {
     if (!str1 || !str2) return false;
-    const normalize = (str: string) => str.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, ' ').trim();
+
+    const normalize = (str: string) => str
+        .toLowerCase()
+        .replace(/[^\w\s]/gi, '') // Rimuove punteggiatura
+        .replace(/\s+/g, ' ')      // Normalizza spazi
+        .trim();
+
     const normalized1 = normalize(str1);
     const normalized2 = normalize(str2);
+
     if (normalized1.length === 0 || normalized2.length === 0) return false;
-    const minLength = Math.min(normalized1.length, normalized2.length);
-    if (minLength < 15) { return normalized1.includes(normalized2) || normalized2.includes(normalized1); }
-    return normalized1.length < normalized2.length ? normalized2.includes(normalized1) : normalized1.includes(normalized2);
+
+    // Se una stringa è contenuta nell'altra (ottimo per descrizioni lunghe vs titoli brevi)
+    if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
+        return true;
+    }
+
+    // Se non sono incluse, calcoliamo una soglia di somiglianza.
+    // Questo aiuta con piccole differenze (es. emoji, parole extra).
+    const words1 = new Set(normalized1.split(' '));
+    const words2 = new Set(normalized2.split(' '));
+    const intersection = new Set([...words1].filter(word => words2.has(word)));
+    const union = new Set([...words1, ...words2]);
+    
+    const similarity = intersection.size / union.size;
+
+    // Consideriamo simili se hanno almeno il 50% di parole in comune.
+    // Puoi aggiustare questa soglia (es. 0.6 per essere più severi).
+    return similarity > 0.5;
 };
+// ▲▲▲ FINE MODIFICA ▲▲▲
+
 
 export const processAndMatchAnalytics = async (
     parsedData: DocumentData[], 
@@ -68,9 +91,6 @@ export const processAndMatchAnalytics = async (
     const relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
     const updatedPostsData = new Map<string, any>();
     
-    // ▼▼▼ MODIFICA 1: AVVISO PREVENTIVO ▼▼▼
-    // Aggiungo un controllo per verificare se i dati in ingresso (`existingPosts`) contengono il campo `userId`.
-    // Questo ci avvisa subito se i dati sono incompleti, prima ancora di iniziare il ciclo.
     if (relevantDbPosts.length > 0 && !relevantDbPosts[0].hasOwnProperty('userId')) {
         console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
         console.error(`[DIAGNOSTIC_WARNING] 🚨 Il campo 'userId' è assente negli oggetti 'Post' forniti.`);
@@ -78,7 +98,6 @@ export const processAndMatchAnalytics = async (
         console.error(`  Verifica la query che carica 'existingPosts' e assicurati che includa il campo 'userId'.`);
         console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
     }
-    // ▲▲▲ FINE MODIFICA 1 ▲▲▲
 
     const matchedDbPostIds = new Set<string>();
     const updatesForExistingPosts: { ref: any, data: any }[] = [];
@@ -141,9 +160,6 @@ export const processAndMatchAnalytics = async (
         if (shares !== null) metricsData.shares = shares;
 
         if (matchedPost) {
-            // ▼▼▼ MODIFICA 2: CONTROLLO DI SICUREZZA ROBUSTO E LOG DETTAGLIATO ▼▼▼
-            // Il controllo ora verifica sia la MANCANZA (`!matchedPost.userId`) sia la DISCREPANZA (`!==`) dell'ID utente.
-            // Questo farà scattare l'errore in modo visibile se i dati in `existingPosts` sono incompleti.
             if (!matchedPost.userId || matchedPost.userId !== userId) {
                 console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
                 console.error(`[SECURITY_ERROR] 🚨 ID UTENTE MANCANTE O NON CORRISPONDENTE!`);
@@ -161,7 +177,6 @@ export const processAndMatchAnalytics = async (
                     updatedPostsData.set(matchedPost.id, metricsData);
                 }
             }
-            // ▲▲▲ FINE MODIFICA 2 ▲▲▲
         } else if (importStrategy === 'create_new') {
             console.log(`[INFO] 📝 Nessun match. Si procederà a creare un nuovo post (strategia: 'create_new').`);
             const newPostData = {
