@@ -30,40 +30,22 @@ const parseDate = (dateStr: string | null, platform: string): Date | null => {
     return null;
 };
 
-// ▼▼▼ MODIFICA CHIAVE: Funzione di similarità migliorata ▼▼▼
 const isSimilar = (str1: string, str2: string): boolean => {
     if (!str1 || !str2) return false;
-
-    const normalize = (str: string) => str
-        .toLowerCase()
-        .replace(/[^\w\s]/gi, '') // Rimuove punteggiatura
-        .replace(/\s+/g, ' ')      // Normalizza spazi
-        .trim();
-
+    const normalize = (str: string) => str.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, ' ').trim();
     const normalized1 = normalize(str1);
     const normalized2 = normalize(str2);
-
     if (normalized1.length === 0 || normalized2.length === 0) return false;
-
-    // Se una stringa è contenuta nell'altra (ottimo per descrizioni lunghe vs titoli brevi)
     if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
         return true;
     }
-
-    // Se non sono incluse, calcoliamo una soglia di somiglianza.
-    // Questo aiuta con piccole differenze (es. emoji, parole extra).
     const words1 = new Set(normalized1.split(' '));
     const words2 = new Set(normalized2.split(' '));
     const intersection = new Set([...words1].filter(word => words2.has(word)));
     const union = new Set([...words1, ...words2]);
-    
     const similarity = intersection.size / union.size;
-
-    // Consideriamo simili se hanno almeno il 50% di parole in comune.
-    // Puoi aggiustare questa soglia (es. 0.6 per essere più severi).
     return similarity > 0.5;
 };
-// ▲▲▲ FINE MODIFICA ▲▲▲
 
 
 export const processAndMatchAnalytics = async (
@@ -91,16 +73,8 @@ export const processAndMatchAnalytics = async (
     const relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
     const updatedPostsData = new Map<string, any>();
     
-    if (relevantDbPosts.length > 0 && !relevantDbPosts[0].hasOwnProperty('userId')) {
-        console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
-        console.error(`[DIAGNOSTIC_WARNING] 🚨 Il campo 'userId' è assente negli oggetti 'Post' forniti.`);
-        console.error(`  Questo è quasi certamente la causa degli errori di permesso.`);
-        console.error(`  Verifica la query che carica 'existingPosts' e assicurati che includa il campo 'userId'.`);
-        console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
-    }
-
     const matchedDbPostIds = new Set<string>();
-    const updatesForExistingPosts: { ref: any, data: any }[] = [];
+    const updatesForExistingPosts: { id: string, data: any }[] = [];
     const newPostsToCreate: { postData: any, metricsData: any }[] = [];
 
     for (const record of parsedData) {
@@ -161,69 +135,71 @@ export const processAndMatchAnalytics = async (
 
         if (matchedPost) {
             if (!matchedPost.userId || matchedPost.userId !== userId) {
-                console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
-                console.error(`[SECURITY_ERROR] 🚨 ID UTENTE MANCANTE O NON CORRISPONDENTE!`);
-                console.error(`  - ID Utente Atteso (loggato): ${userId}`);
-                console.error(`  - ID Utente Trovato (nel post del DB): ${matchedPost.userId || '!!! ASSENTE !!!'}`);
-                console.error(`  - ID del Post Problematico: ${matchedPost.id}`);
-                console.error(`  - Questo aggiornamento verrà saltato per prevenire un errore di permessi.`);
-                console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
+                 console.error(`[SECURITY_ERROR] per post ID ${matchedPost.id}: Atteso userId ${userId}, trovato ${matchedPost.userId || 'ASSENTE'}`);
             } else {
                 console.log(`[INFO] ✅ Corrispondenza valida. Dati DB: Data ${matchedPost.data.toDate().toLocaleDateString('it-IT')}, Testo "${(matchedPost.descrizione || matchedPost.titolo).substring(0, 80)}..."`);
                 matchedDbPostIds.add(matchedPost.id);
                 if (Object.keys(metricsData).length > 1) {
-                    const postRef = doc(db, 'performanceMetrics', matchedPost.id);
-                    updatesForExistingPosts.push({ ref: postRef, data: metricsData });
+                    updatesForExistingPosts.push({ id: matchedPost.id, data: metricsData });
                     updatedPostsData.set(matchedPost.id, metricsData);
                 }
             }
         } else if (importStrategy === 'create_new') {
-            console.log(`[INFO] 📝 Nessun match. Si procederà a creare un nuovo post (strategia: 'create_new').`);
-            const newPostData = {
-                userId: userId,
-                piattaforma: platformName,
-                data: Timestamp.fromDate(csvDate),
-                titolo: getValueFromRecord(record, mapper.title) || 'Titolo non disponibile',
-            };
+            const newPostData = { userId, piattaforma: platformName, data: Timestamp.fromDate(csvDate), titolo: getValueFromRecord(record, mapper.title) || 'Titolo non disponibile' };
             newPostsToCreate.push({ postData: newPostData, metricsData });
         }
     }
     
-    const newPostsWithIds: { id: string, metricsData: any }[] = [];
+    // Creazione nuovi post (se presenti) - Mantenuta in un batch per efficienza
+    const createdPostsWithMetrics: { id: string, metricsData: any }[] = [];
     if (newPostsToCreate.length > 0) {
         const creationBatch = writeBatch(db);
         for (const item of newPostsToCreate) {
             const newPostRef = doc(collection(db, 'contenuti'));
             creationBatch.set(newPostRef, { ...item.postData, id: newPostRef.id });
-            newPostsWithIds.push({ id: newPostRef.id, metricsData: item.metricsData });
+            createdPostsWithMetrics.push({ id: newPostRef.id, metricsData: item.metricsData });
         }
         try {
             await creationBatch.commit();
             createdPostsCount = newPostsToCreate.length;
+            console.log(`[SUCCESS] Creati ${createdPostsCount} nuovi post.`);
         } catch (error) {
-            console.error("❌ Errore durante la creazione dei nuovi contenuti:", error);
+            console.error("❌ Errore durante la creazione batch dei nuovi contenuti:", error);
         }
     }
 
-    const metricsBatch = writeBatch(db);
+    // Aggiornamento/creazione delle metriche in modo individuale per isolare gli errori
+    const allMetricWrites = [];
+    
+    // Aggiungo le metriche per i post esistenti
     for (const update of updatesForExistingPosts) {
-        metricsBatch.set(update.ref, update.data, { merge: true });
+        const metricsRef = doc(db, 'performanceMetrics', update.id);
+        allMetricWrites.push(
+            setDoc(metricsRef, update.data, { merge: true })
+                .then(() => {
+                    updatedPostsCount++;
+                })
+                .catch(error => {
+                    console.error(`❌ ERRORE DI SCRITTURA ISOLATO per post ID [${update.id}]:`, error.message);
+                })
+        );
     }
-    for (const newItem of newPostsWithIds) {
+
+    // Aggiungo le metriche per i nuovi post creati
+    for (const newItem of createdPostsWithMetrics) {
         if (Object.keys(newItem.metricsData).length > 1) { 
             const newMetricsRef = doc(db, 'performanceMetrics', newItem.id);
-            metricsBatch.set(newMetricsRef, newItem.metricsData);
+            allMetricWrites.push(
+                setDoc(newMetricsRef, newItem.metricsData)
+                    .catch(error => {
+                        console.error(`❌ ERRORE DI SCRITTURA ISOLATO per NUOVO post ID [${newItem.id}]:`, error.message);
+                    })
+            );
         }
     }
 
-    if (updatesForExistingPosts.length > 0 || newPostsWithIds.length > 0) {
-        try {
-            await metricsBatch.commit();
-            updatedPostsCount = updatesForExistingPosts.length;
-        } catch (error) {
-            console.error("❌ Errore durante l'aggiornamento/creazione delle metriche:", error);
-        }
-    }
+    // Eseguo tutte le promesse di scrittura in parallelo e attendo il completamento
+    await Promise.all(allMetricWrites);
     
     console.log(`\n====================================================`);
     console.log(`[INFO] Analisi per "${platform.toUpperCase()}" completata.`);
