@@ -68,6 +68,18 @@ export const processAndMatchAnalytics = async (
     const relevantDbPosts = existingPosts.filter(p => p.piattaforma?.toLowerCase() === platformName);
     const updatedPostsData = new Map<string, any>();
     
+    // ▼▼▼ MODIFICA 1: AVVISO PREVENTIVO ▼▼▼
+    // Aggiungo un controllo per verificare se i dati in ingresso (`existingPosts`) contengono il campo `userId`.
+    // Questo ci avvisa subito se i dati sono incompleti, prima ancora di iniziare il ciclo.
+    if (relevantDbPosts.length > 0 && !relevantDbPosts[0].hasOwnProperty('userId')) {
+        console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
+        console.error(`[DIAGNOSTIC_WARNING] 🚨 Il campo 'userId' è assente negli oggetti 'Post' forniti.`);
+        console.error(`  Questo è quasi certamente la causa degli errori di permesso.`);
+        console.error(`  Verifica la query che carica 'existingPosts' e assicurati che includa il campo 'userId'.`);
+        console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
+    }
+    // ▲▲▲ FINE MODIFICA 1 ▲▲▲
+
     const matchedDbPostIds = new Set<string>();
     const updatesForExistingPosts: { ref: any, data: any }[] = [];
     const newPostsToCreate: { postData: any, metricsData: any }[] = [];
@@ -87,9 +99,8 @@ export const processAndMatchAnalytics = async (
         console.log(`[DEBUG] 🔍 Analizzo record CSV con data ${csvDate.toLocaleDateString('it-IT')}`);
         console.log(`        Testo: "${csvDescription.substring(0, 80)}..."`);
         
-        // ▼▼▼ MODIFICA: Ricerca flessibile della data ▼▼▼
-        const searchStartDate = new Date(csvDate.getTime() - (24 * 60 * 60 * 1000)); // 1 giorno prima
-        const searchEndDate = new Date(csvDate.getTime() + (24 * 60 * 60 * 1000));   // 1 giorno dopo
+        const searchStartDate = new Date(csvDate.getTime() - (24 * 60 * 60 * 1000));
+        const searchEndDate = new Date(csvDate.getTime() + (24 * 60 * 60 * 1000));
 
         const postsInDateRange = relevantDbPosts.filter(p => {
             const postDate = startOfDay(p.data.toDate());
@@ -97,26 +108,20 @@ export const processAndMatchAnalytics = async (
                    postDate <= startOfDay(searchEndDate) &&
                    !matchedDbPostIds.has(p.id);
         });
-        // ▲▲▲ FINE MODIFICA ▲▲▲
 
         let matchedPost: Post | null = null;
-        if (postsInDateRange.length === 0) {
-            console.log(`[FAIL] ❌ Nessun post pianificato trovato nel DB nell'intervallo di +/- 1 giorno.`);
-        } else {
+        if (postsInDateRange.length > 0) {
             matchedPost = postsInDateRange.find(p => isSimilar(p.descrizione || p.titolo, csvDescription)) || null;
             if (matchedPost) {
                 console.log(`[SUCCESS] ✅ Corrispondenza trovata tramite testo nell'intervallo di date!`);
-                console.log(`          Data CSV: ${csvDate.toLocaleDateString('it-IT')}, Data DB: ${matchedPost.data.toDate().toLocaleDateString('it-IT')}`);
-                console.log(`          DB Post: "${(matchedPost.descrizione || matchedPost.titolo).substring(0, 80)}..."`);
+            } else if (postsInDateRange.length === 1) {
+                matchedPost = postsInDateRange[0];
+                console.log(`[SUCCESS] ✅ Corrispondenza trovata tramite fallback (unico post disponibile nell'intervallo).`);
             } else {
-                if (postsInDateRange.length === 1) {
-                    matchedPost = postsInDateRange[0];
-                    console.log(`[SUCCESS] ✅ Corrispondenza trovata tramite fallback (unico post disponibile nell'intervallo).`);
-                    console.log(`          Data CSV: ${csvDate.toLocaleDateString('it-IT')}, Data DB: ${matchedPost.data.toDate().toLocaleDateString('it-IT')}`);
-                } else {
-                    console.log(`[FAIL] ❌ Trovati ${postsInDateRange.length} post nell'intervallo, ma nessuno corrisponde al testo.`);
-                }
+                console.log(`[FAIL] ❌ Trovati ${postsInDateRange.length} post nell'intervallo, ma nessuno corrisponde al testo.`);
             }
+        } else {
+             console.log(`[FAIL] ❌ Nessun post pianificato trovato nel DB nell'intervallo di +/- 1 giorno.`);
         }
 
         const cleanAndConvertToNumber = (value: string | null): number | null => {
@@ -136,15 +141,19 @@ export const processAndMatchAnalytics = async (
         if (shares !== null) metricsData.shares = shares;
 
         if (matchedPost) {
-            if (matchedPost.userId !== userId) {
+            // ▼▼▼ MODIFICA 2: CONTROLLO DI SICUREZZA ROBUSTO E LOG DETTAGLIATO ▼▼▼
+            // Il controllo ora verifica sia la MANCANZA (`!matchedPost.userId`) sia la DISCREPANZA (`!==`) dell'ID utente.
+            // Questo farà scattare l'errore in modo visibile se i dati in `existingPosts` sono incompleti.
+            if (!matchedPost.userId || matchedPost.userId !== userId) {
                 console.error(`\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`);
-                console.error(`[SECURITY_ERROR] 🚨 ID UTENTE NON CORRISPONDENTE!`);
+                console.error(`[SECURITY_ERROR] 🚨 ID UTENTE MANCANTE O NON CORRISPONDENTE!`);
                 console.error(`  - ID Utente Atteso (loggato): ${userId}`);
-                console.error(`  - ID Utente Trovato (nel post del DB): ${matchedPost.userId}`);
+                console.error(`  - ID Utente Trovato (nel post del DB): ${matchedPost.userId || '!!! ASSENTE !!!'}`);
                 console.error(`  - ID del Post Problematico: ${matchedPost.id}`);
                 console.error(`  - Questo aggiornamento verrà saltato per prevenire un errore di permessi.`);
                 console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
             } else {
+                console.log(`[INFO] ✅ Corrispondenza valida. Dati DB: Data ${matchedPost.data.toDate().toLocaleDateString('it-IT')}, Testo "${(matchedPost.descrizione || matchedPost.titolo).substring(0, 80)}..."`);
                 matchedDbPostIds.add(matchedPost.id);
                 if (Object.keys(metricsData).length > 1) {
                     const postRef = doc(db, 'performanceMetrics', matchedPost.id);
@@ -152,6 +161,7 @@ export const processAndMatchAnalytics = async (
                     updatedPostsData.set(matchedPost.id, metricsData);
                 }
             }
+            // ▲▲▲ FINE MODIFICA 2 ▲▲▲
         } else if (importStrategy === 'create_new') {
             console.log(`[INFO] 📝 Nessun match. Si procederà a creare un nuovo post (strategia: 'create_new').`);
             const newPostData = {
@@ -164,7 +174,6 @@ export const processAndMatchAnalytics = async (
         }
     }
     
-    // Scrittura batch su Firebase (invariata)
     const newPostsWithIds: { id: string, metricsData: any }[] = [];
     if (newPostsToCreate.length > 0) {
         const creationBatch = writeBatch(db);
