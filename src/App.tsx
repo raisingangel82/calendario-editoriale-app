@@ -465,10 +465,10 @@ function MainLayout() {
         await batch.commit();
         alert(`Importazione completata con successo!`);
 
-    } catch (error) {
+    } catch (error) { // <-- INIZIO BLOCCO CORRETTO
       console.error("Errore durante l'importazione:", error);
       alert(`Si è verificato un errore durante l'importazione. Controlla la console per i dettagli.`);
-    }
+    } // <-- FINE BLOCCO CORRETTO
 
     handleCloseModals();
   };
@@ -537,7 +537,7 @@ function MainLayout() {
           <Route path="/" element={<Calendario posts={posts} progetti={progetti} workingDays={workingDays} onCardClick={setSelectedPost} onStatusChange={handleStatusChange} autoScrollEnabled={autoScrollEnabled} />} />
           <Route path="/todo" element={<FilteredListView posts={posts} progetti={progetti} onPostClick={setSelectedPost} onStatusChange={handleStatusChange} />} />
           <Route path="/stats" element={ <Stats posts={posts} progetti={progetti} activeView={statsActiveView} onCardClick={setSelectedPost} onStatusChange={handleStatusChange} /> } />
-          <Route path="/utility" element={ <Impostazioni onImportClick={() => setIsImportModalOpen(true)} onExportClick={handleExportDatabase} onProjectsClick={() => setIsProjectModalOpen(true)} platforms={platforms} onAddPlatform={handleAddPlatform} onUpdatePlatform={handleUpdatePlatform} onDeletePlatform={handleDeletePlatform} autoScrollEnabled={autoScrollEnabled} onAutoScrollChange={handleSetAutoScroll} /> } />
+          <Route path="/utility" element={ <Impostazioni onImportClick={() => setIsImportModalOpen(true)} onExportClick={handleExportDatabase} onProjectsClick={() => setIsProjectModalOpen(true)} platforms={platforms} onAddPlatform={handleAddPlatform} onUpdatePlatform={handleUpdatePlatform} onDeletePlatform={handleDeletePlatform} autoScrollEnabled={autoScrollEnabled} onAutoScrollChange={handleSetAutoScroll} workingDays={workingDays} onWorkingDaysChange={handleSetWorkingDays} /> } />
           <Route path="/upgrade" element={<UpgradePage />} />
           <Route path="/success" element={<SuccessPage />} />
       </Routes>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { BellRing, Palette, Upload, Download, Settings, Briefcase, Star, Play, Pause } from 'lucide-react';
+import { BellRing, Palette, Upload, Download, Settings, Briefcase, Star, Play, Pause, CalendarDays } from 'lucide-react'; // Aggiunto CalendarDays
 import { PlatformManager } from '../components/PlatformManager';
 import { getMessaging, getToken } from "firebase/messaging";
 import { doc, setDoc } from 'firebase/firestore';
@@ -34,7 +34,20 @@ interface ImpostazioniProps {
     onDeletePlatform: (id: string) => void;
     autoScrollEnabled: boolean;
     onAutoScrollChange: (enabled: boolean) => void;
+    // Props aggiunte
+    workingDays: number[];
+    onWorkingDaysChange: (days: number[]) => void;
 }
+
+const daysOfWeek = [
+    { label: 'L', value: 1, full: 'Lunedì' },
+    { label: 'M', value: 2, full: 'Martedì' },
+    { label: 'M', value: 3, full: 'Mercoledì' },
+    { label: 'G', value: 4, full: 'Giovedì' },
+    { label: 'V', value: 5, full: 'Venerdì' },
+    { label: 'S', value: 6, full: 'Sabato' },
+    { label: 'D', value: 7, full: 'Domenica' },
+];
 
 export const Impostazioni: React.FC<ImpostazioniProps> = ({ 
     onImportClick, 
@@ -45,12 +58,25 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
     onUpdatePlatform,
     onDeletePlatform,
     autoScrollEnabled,
-    onAutoScrollChange
+    onAutoScrollChange,
+    workingDays,
+    onWorkingDaysChange
 }) => {
   const { user } = useAuth();
   const { baseColor, setBaseColor, colorShade, setColorShade, getActiveColor } = useTheme();
   const [isSubscribing, setIsSubscribing] = React.useState(false);
   const [notificationStatus, setNotificationStatus] = React.useState<string | null>(null);
+
+  const handleDayToggle = (dayValue: number) => {
+    const newWorkingDays = workingDays.includes(dayValue)
+      ? workingDays.filter(d => d !== dayValue)
+      : [...workingDays, dayValue];
+
+    // Assicura che almeno un giorno sia selezionato
+    if (newWorkingDays.length > 0) {
+      onWorkingDaysChange(newWorkingDays.sort());
+    }
+  };
 
   const handleEnableNotifications = async () => {
     if (!user) return;
@@ -104,6 +130,33 @@ export const Impostazioni: React.FC<ImpostazioniProps> = ({
                         {(['400', '700', '800'] as ColorShade[]).map(shade => ( <button key={shade} onClick={() => setColorShade(shade)} className={`w-full text-xs py-1 px-2 rounded-md transition-colors ${colorShade === shade ? `${getActiveColor('bg')} text-white font-semibold` : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}> {shade === '400' ? 'Chiara' : shade === '700' ? 'Media' : 'Intensa'} </button>))}
                     </div>
                   </div>
+                </div>
+            </SettingsCard>
+            
+            {/* NUOVA CARD PER I GIORNI DELLA SETTIMANA */}
+            <SettingsCard title="Pianificazione Settimanale" icon={CalendarDays}>
+                <div>
+                    <h5 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 text-sm">Giorni Visibili nel Calendario</h5>
+                    <div className="flex justify-around bg-gray-100 dark:bg-gray-900/50 p-1 rounded-md">
+                        {daysOfWeek.map(day => {
+                            const isSelected = workingDays.includes(day.value);
+                            return (
+                                <button
+                                    key={day.value}
+                                    type="button"
+                                    title={day.full}
+                                    onClick={() => handleDayToggle(day.value)}
+                                    className={`flex-1 text-center font-bold text-xs py-2 px-2 rounded transition-colors ${
+                                        isSelected
+                                            ? `${getActiveColor('bg')} text-white`
+                                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                    }`}
+                                >
+                                    {day.label}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             </SettingsCard>
 
